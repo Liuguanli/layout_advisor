@@ -1,0 +1,11 @@
+customer_id,customer_name,region,city,age,income,signup_year
+1,Alice Tan,APAC,Singapore,29,78000,2021
+2,Bob Miller,NA,Boston,41,92000,2020
+3,Carla Ruiz,EMEA,Madrid,35,86000,2022
+4,Daniel Kim,APAC,Seoul,32,99000,2019
+5,Emma Chen,APAC,Taipei,27,64000,2023
+6,Farah Ali,EMEA,Dubai,44,120000,2018
+7,George White,NA,Chicago,38,73000,2021
+8,Hannah Lee,EMEA,London,31,81000,2020
+9,Ian Wong,APAC,Hong Kong,46,130000,2017
+10,Julia Park,NA,San Francisco,33,110000,2022
