@@ -53,10 +53,10 @@ const layoutOptions = [
     label: "Z-Order",
     description: "Morton-style quadrant traversal that preserves locality coarsely.",
     platforms: [
-      { name: "Databricks", short: "DB", tone: "databricks" },
+      { name: "Delta Lake", short: "DL", tone: "delta" },
+      { name: "DuckDB", short: "DU", tone: "duckdb" },
       { name: "Hudi", short: "HU", tone: "hudi" },
       { name: "Iceberg", short: "IC", tone: "iceberg" },
-      { name: "AWS", short: "AWS", tone: "aws" },
     ],
   },
   {
@@ -64,10 +64,10 @@ const layoutOptions = [
     label: "Linear",
     description: "Simple lexicographic ordering across the selected columns.",
     platforms: [
+      { name: "Delta Lake", short: "DL", tone: "delta" },
+      { name: "DuckDB", short: "DU", tone: "duckdb" },
       { name: "Hudi", short: "HU", tone: "hudi" },
       { name: "Iceberg", short: "IC", tone: "iceberg" },
-      { name: "Snowflake", short: "SN", tone: "snowflake" },
-      { name: "AWS", short: "AWS", tone: "aws" },
     ],
   },
   {
@@ -75,8 +75,9 @@ const layoutOptions = [
     label: "Hilbert",
     description: "Continuous space-filling curve with stronger locality preservation.",
     platforms: [
-      { name: "Hudi", short: "HU", tone: "hudi" },
+      { name: "Delta Lake", short: "DL", tone: "delta" },
       { name: "DuckDB", short: "DU", tone: "duckdb" },
+      { name: "Hudi", short: "HU", tone: "hudi" },
     ],
   },
 ] as const;

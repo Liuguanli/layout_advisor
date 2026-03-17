@@ -46,7 +46,7 @@ type RuntimeSimulationPlan = {
   cumulativeRuntimeMap: Map<string, number[]>;
 };
 
-type PreviewPlatformId = "hudi" | "databricks" | "iceberg" | "spark";
+type PreviewPlatformId = "hudi" | "delta" | "iceberg" | "spark";
 
 type PreviewConfigTab = {
   id: PreviewPlatformId;
@@ -863,12 +863,21 @@ function formatMockResultLabel(result: MockExecutionResult): string {
 }
 
 function buildPreviewConfigTabs(row: MockComparisonRow): PreviewConfigTab[] {
-  return [
+  const tabs: PreviewConfigTab[] = [
     { id: "hudi", label: "Hudi", content: buildHudiPreviewConfig(row) },
-    { id: "databricks", label: "Databricks", content: buildDatabricksPreviewConfig(row) },
-    { id: "iceberg", label: "Iceberg", content: buildIcebergPreviewConfig(row) },
+    { id: "delta", label: "Delta Lake", content: buildDeltaLakePreviewConfig(row) },
     { id: "spark", label: "Spark", content: buildSparkPreviewConfig(row) },
   ];
+
+  if (row.result.layout_type !== "hilbert") {
+    tabs.splice(2, 0, {
+      id: "iceberg",
+      label: "Iceberg",
+      content: buildIcebergPreviewConfig(row),
+    });
+  }
+
+  return tabs;
 }
 
 function buildHudiPreviewConfig(row: MockComparisonRow): string {
@@ -900,13 +909,13 @@ function buildHudiPreviewConfig(row: MockComparisonRow): string {
   ].join("\n");
 }
 
-function buildDatabricksPreviewConfig(row: MockComparisonRow): string {
+function buildDeltaLakePreviewConfig(row: MockComparisonRow): string {
   const partitionColumns = toSqlList(row.result.partition_columns);
   const layoutColumns = toSqlList(row.result.layout_columns);
   const layoutType = row.result.layout_type;
 
   return [
-    "-- Databricks Delta preview",
+    "-- Delta Lake preview",
     partitionColumns
       ? `CREATE OR REPLACE TABLE <catalog>.<schema>.<table_name>\nUSING DELTA\nPARTITIONED BY (${partitionColumns})\nAS SELECT * FROM <source_table>;`
       : `CREATE OR REPLACE TABLE <catalog>.<schema>.<table_name>\nUSING DELTA\nAS SELECT * FROM <source_table>;`,
