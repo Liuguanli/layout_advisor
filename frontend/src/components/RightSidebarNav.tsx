@@ -20,30 +20,41 @@ export default function RightSidebarNav({ items }: RightSidebarNavProps) {
       return undefined;
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visibleEntries = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
-        if (visibleEntries.length > 0) {
-          setActiveSectionId(visibleEntries[0].target.id);
-        }
-      },
-      {
-        rootMargin: "-15% 0px -55% 0px",
-        threshold: [0.1, 0.25, 0.45, 0.7],
-      },
-    );
+    const updateActiveSection = () => {
+      const activationLine = window.innerHeight * 0.22;
+      const sections = items
+        .map((item) => document.getElementById(item.id))
+        .filter((element): element is HTMLElement => element !== null);
 
-    items.forEach((item) => {
-      const element = document.getElementById(item.id);
-      if (element) {
-        observer.observe(element);
+      const passedSections = sections.filter(
+        (section) => section.getBoundingClientRect().top <= activationLine,
+      );
+
+      if (passedSections.length > 0) {
+        const current = passedSections[passedSections.length - 1];
+        setActiveSectionId(current.id);
+        return;
       }
-    });
+
+      const nearestSection = sections
+        .map((section) => ({
+          id: section.id,
+          distance: Math.abs(section.getBoundingClientRect().top - activationLine),
+        }))
+        .sort((left, right) => left.distance - right.distance)[0];
+
+      if (nearestSection) {
+        setActiveSectionId(nearestSection.id);
+      }
+    };
+
+    updateActiveSection();
+    window.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
 
     return () => {
-      observer.disconnect();
+      window.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
     };
   }, [items]);
 
