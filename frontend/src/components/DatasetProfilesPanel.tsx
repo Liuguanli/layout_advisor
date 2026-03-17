@@ -17,12 +17,10 @@ import CollapsibleSubsection from "./CollapsibleSubsection";
 
 type DatasetProfilesPanelProps = {
   profiles: ColumnProfile[];
-  sampleSize: number;
 };
 
 export default function DatasetProfilesPanel({
   profiles,
-  sampleSize,
 }: DatasetProfilesPanelProps) {
   const renderDistribution = (profile: ColumnProfile) => {
     if (profile.distribution_kind === "datetime_line") {
@@ -98,10 +96,7 @@ export default function DatasetProfilesPanel({
   };
 
   return (
-    <CollapsibleSubsection
-      title="Column Profiles"
-      note={<p className="muted">Estimated from {sampleSize.toLocaleString()} sampled rows.</p>}
-    >
+    <CollapsibleSubsection title="Column Profiles">
       {profiles.length === 0 ? (
         <p className="muted">No column profiles selected. Choose one or more columns above.</p>
       ) : (

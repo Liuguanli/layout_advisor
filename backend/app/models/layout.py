@@ -55,9 +55,9 @@ class QueryEstimate(BaseModel):
 class ScoreWeights(BaseModel):
     """Configurable weights for the optional composite layout score.
 
-    The composite score is cost-like: lower is better.
-    It rewards lower average read ratio and broader benefit coverage while
-    penalizing worst-case scans, layout complexity, and more layout columns.
+    The composite score is utility-like: higher is better.
+    It rewards read saving, broader benefit coverage, and better worst-case
+    pruning while penalizing layout complexity and wider layout keys.
     """
 
     read_saving_weight: float = Field(default=0.45, ge=0)

@@ -45,46 +45,19 @@ export default function DatasetCorrelationPanel({
             Compute Correlation
           </button>
         </div>
-        <p className="muted">
-          Correlation is computed on demand so dataset loading stays fast and stable.
-        </p>
         {error && <p className="error">{error}</p>}
       </CollapsibleSubsection>
     );
   }
 
-  const unsupportedColumns = correlationSummary.columns.filter(
-    (column) => correlationSummary.column_kinds[column] === "unsupported_text",
-  );
-
   return (
-    <CollapsibleSubsection
-      title="Correlation"
-      note={(
-        <>
-          <p className="muted">
-            Full-scan association matrix across all columns.
-          </p>
-          <p className="muted">
-            The matrix uses a suitable association metric for each column pair so values remain
-            comparable across numeric, date, and categorical columns.
-          </p>
-          {unsupportedColumns.length > 0 && (
-            <p className="muted">
-              High-cardinality text columns are still listed in the matrix, but unsupported
-              pair scores stay `N/A`: {unsupportedColumns.join(", ")}.
-            </p>
-          )}
-        </>
-      )}
-    >
+    <CollapsibleSubsection title="Correlation">
       {error && <p className="error">{error}</p>}
 
       <div className="correlation-layout">
         <article className="correlation-card">
           <div className="section-header">
             <h3>Correlation Matrix</h3>
-            <p className="muted">{correlationSummary.columns.length} columns</p>
           </div>
 
           <div className="matrix-legend">

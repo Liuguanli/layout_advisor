@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   Bar,
@@ -27,6 +27,8 @@ type VerificationPanelProps = {
   datasetSummary: DatasetSummary | null;
   workloadSummary: WorkloadSummary | null;
   comparisonList: LayoutEvaluation[];
+  onStatusChange?: (complete: boolean) => void;
+  headerAction?: ReactNode;
 };
 
 const MOCK_PROGRESS_STEPS = ["Ingesting Data", "Running Queries", "Ranking"];
@@ -102,6 +104,8 @@ export default function VerificationPanel({
   datasetSummary,
   workloadSummary,
   comparisonList,
+  onStatusChange,
+  headerAction,
 }: VerificationPanelProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
@@ -156,7 +160,7 @@ export default function VerificationPanel({
   };
 
   const sortedComparisonList = useMemo(
-    () => [...comparisonList].sort((left, right) => getScoreValue(left) - getScoreValue(right)),
+    () => [...comparisonList].sort((left, right) => getScoreValue(right) - getScoreValue(left)),
     [comparisonList],
   );
 
@@ -185,6 +189,10 @@ export default function VerificationPanel({
       clearProgressTimer();
     };
   }, []);
+
+  useEffect(() => {
+    onStatusChange?.(mockExecutionResults.length > 0);
+  }, [mockExecutionResults.length, onStatusChange]);
 
   const toggleComparisonSelection = (evaluationId: string) => {
     setSelectedComparisonIds((current) =>
@@ -414,7 +422,9 @@ export default function VerificationPanel({
     setSelectedCandidatesSortDirection(
       nextKey === "partitionSpec" || nextKey === "layoutType" || nextKey === "columnOrder" || nextKey === "estimator"
         ? "asc"
-        : "asc",
+        : nextKey === "estimatedScore"
+          ? "desc"
+          : "asc",
     );
   };
 
@@ -427,7 +437,9 @@ export default function VerificationPanel({
     setMockComparisonSortDirection(
       nextKey === "partitionSpec" || nextKey === "layoutType" || nextKey === "columnOrder"
         ? "asc"
-        : "asc",
+        : nextKey === "estimatedScore" || nextKey === "actualScore"
+          ? "desc"
+          : "asc",
     );
   };
 
@@ -437,17 +449,13 @@ export default function VerificationPanel({
         title="4. Verification"
         collapsed={collapsed}
         onToggle={() => setCollapsed((current) => !current)}
+        action={headerAction}
       />
 
       {!collapsed && (
         <>
-          <CollapsibleSubsection
-            title="Selected Candidates"
-            note={<p className="muted">pick evaluated layouts to compare against mock actual results</p>}
-          >
-            {sortedComparisonList.length === 0 ? (
-              <p className="muted">Run layout evaluation first to populate the comparison list.</p>
-            ) : (
+          <CollapsibleSubsection title="Selected Candidates">
+            {sortedComparisonList.length > 0 && (
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -533,19 +541,11 @@ export default function VerificationPanel({
                 Stop Mock Run
               </button>
             </div>
-            <p className="muted">
-              This is still mock-only. It prepares the verification workflow so you can later
-              swap in real Hudi execution or multiple server-side runners without changing the UI structure.
-            </p>
             {mockExecutionError && <p className="error">{mockExecutionError}</p>}
           </CollapsibleSubsection>
 
           {rankOverviewVisible && (
-            <CollapsibleSubsection
-              title="Rank Overview"
-              note={<p className="muted">only the selected candidates are shown, and rows reorder as mock results arrive</p>}
-              className="chart-card chart-card-full"
-            >
+            <CollapsibleSubsection title="Rank Overview" className="chart-card chart-card-full">
               <div className="verification-progress">
                 <div className="verification-progress-head">
                   <strong>{getProgressHeadline(mockProgressPhase, executedQueryCount, simulatedQueryCount)}</strong>
@@ -611,18 +611,11 @@ export default function VerificationPanel({
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-              <p className="muted">
-                Lower rank is better. The chart updates continuously during the mock run and then
-                settles with the fastest actual layout at the top.
-              </p>
             </CollapsibleSubsection>
           )}
 
           {comparisonRows.length > 0 && (
-            <CollapsibleSubsection
-              title="Estimated vs Mock Actual"
-              note={<p className="muted">compare estimated ranking with deterministic mock runtime</p>}
-            >
+            <CollapsibleSubsection title="Estimated vs Mock Actual">
               <div className="table-wrap">
                 <table className="verification-results-table">
                   <thead>
@@ -782,7 +775,7 @@ export default function VerificationPanel({
 }
 
 function getScoreValue(item: LayoutEvaluation): number {
-  return item.composite_score ?? item.avg_record_read_ratio;
+  return item.composite_score ?? (1 - item.avg_record_read_ratio);
 }
 
 function buildMockComparisonRows(

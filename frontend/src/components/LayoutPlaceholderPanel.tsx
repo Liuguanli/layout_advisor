@@ -7,7 +7,6 @@ import {
   CorrelationSummary,
   DatasetSummary,
   LayoutEvaluation,
-  LayoutEvaluationResponse,
   WorkloadSummary,
 } from "../lib/types";
 import CollapsibleHeader from "./CollapsibleHeader";
@@ -20,6 +19,7 @@ type LayoutPlaceholderPanelProps = {
   onComparisonListChange?: (items: LayoutEvaluation[]) => void;
   onGlobalLoadingStart?: (label: string) => void;
   onGlobalLoadingEnd?: () => void;
+  headerAction?: ReactNode;
 };
 
 type LayoutPlatform = {
@@ -54,7 +54,6 @@ const layoutOptions = [
     description: "Morton-style quadrant traversal that preserves locality coarsely.",
     platforms: [
       { name: "Delta Lake", short: "DL", tone: "delta" },
-      { name: "DuckDB", short: "DU", tone: "duckdb" },
       { name: "Hudi", short: "HU", tone: "hudi" },
       { name: "Iceberg", short: "IC", tone: "iceberg" },
     ],
@@ -65,7 +64,6 @@ const layoutOptions = [
     description: "Simple lexicographic ordering across the selected columns.",
     platforms: [
       { name: "Delta Lake", short: "DL", tone: "delta" },
-      { name: "DuckDB", short: "DU", tone: "duckdb" },
       { name: "Hudi", short: "HU", tone: "hudi" },
       { name: "Iceberg", short: "IC", tone: "iceberg" },
     ],
@@ -76,8 +74,119 @@ const layoutOptions = [
     description: "Continuous space-filling curve with stronger locality preservation.",
     platforms: [
       { name: "Delta Lake", short: "DL", tone: "delta" },
-      { name: "DuckDB", short: "DU", tone: "duckdb" },
       { name: "Hudi", short: "HU", tone: "hudi" },
+    ],
+  },
+] as const;
+
+const partitionColumnGuide = [
+  {
+    label: "Equality + IN",
+    detail: "Share of this column's predicates that are equality or IN filters. For example, 100% means every observed predicate on this column is equality-like.",
+  },
+  {
+    label: "Workload Freq",
+    detail: "How often the workload filters on this column overall.",
+  },
+  {
+    label: "Partition Risk",
+    detail: "A warning signal for over-partitioning or weak pruning benefit.",
+  },
+  {
+    label: "Partition Hint",
+    detail: "A lightweight recommendation that combines access pattern, cardinality, and risk.",
+  },
+] as const;
+
+const partitionClassificationGuide = [
+  {
+    title: "Partition Risk Levels",
+    items: [
+      {
+        label: "Low",
+        level: "low",
+        detail: "Coarse enough to form stable partition boundaries.",
+      },
+      {
+        label: "Medium",
+        level: "medium",
+        detail: "Usable, but watch for partition proliferation or skew.",
+      },
+      {
+        label: "High",
+        level: "high",
+        detail: "Likely too fine-grained or unstable for partitioning.",
+      },
+    ],
+  },
+  {
+    title: "Partition Hint Levels",
+    items: [
+      {
+        label: "Strong",
+        level: "strong",
+        detail: "Good partition candidate: equality-heavy with manageable cardinality.",
+      },
+      {
+        label: "Conditional",
+        level: "conditional",
+        detail: "Potentially useful, but depends on workload mix and cardinality.",
+      },
+      {
+        label: "Weak",
+        level: "weak",
+        detail: "Usually not a good primary partition key.",
+      },
+    ],
+  },
+] as const;
+
+const layoutColumnGuide = [
+  {
+    label: "Distinctness",
+    detail: "Approximate distinctness from the sample. Higher values often give ordering more room to separate data.",
+  },
+  {
+    label: "Range Share",
+    detail: "How much this column is used by range predicates. Higher usually favors ordering.",
+  },
+  {
+    label: "Avg Predicate Sel.",
+    detail: "Average selectivity of predicates on this column alone. Lower means stronger pruning power.",
+  },
+  {
+    label: "Avg Query Sel.",
+    detail: "Average selectivity of full queries that include this column. Lower means it appears in tighter query patterns.",
+  },
+  {
+    label: "Correlation",
+    detail: "Strongest observed association with another column. Useful for grouping compatible layout keys.",
+  },
+  {
+    label: "Ordering Hint",
+    detail: "Compact recommendation derived from range usage, selectivity, cardinality, and correlation.",
+  },
+] as const;
+
+const layoutClassificationGuide = [
+  {
+    title: "Ordering Hint Levels",
+    items: [
+      {
+        label: "Strong",
+        level: "strong",
+        detail: "Usually a good ordering key with strong range pressure or pruning value.",
+      },
+      {
+        label: "Conditional",
+        level: "conditional",
+        detail: "Can help, but depends on query mix or companion columns.",
+      },
+      {
+        label: "Weak",
+        level: "weak",
+        detail: "Usually low-value for in-partition ordering.",
+      },
     ],
   },
 ] as const;
@@ -145,7 +254,7 @@ type DesignStageId = "partition" | "layout";
 type DesignTimelineStageProps = {
   title: string;
   subtitle: string;
-  description: ReactNode;
+  description?: ReactNode;
   summary: ReactNode;
   collapsed: boolean;
   onToggle: () => void;
@@ -183,7 +292,7 @@ function DesignTimelineStage({
               <span className={`collapsible-caret ${collapsed ? "is-collapsed" : ""}`}>▾</span>
             </div>
           </div>
-          <div className="muted design-stage-description">{description}</div>
+          {description ? <div className="muted design-stage-description">{description}</div> : null}
           <div className="design-stage-inline-summary">{summary}</div>
         </div>
       </button>
@@ -204,6 +313,7 @@ export default function LayoutPlaceholderPanel({
   onComparisonListChange,
   onGlobalLoadingStart,
   onGlobalLoadingEnd,
+  headerAction,
 }: LayoutPlaceholderPanelProps) {
   const [selectedPartitionStrategy, setSelectedPartitionStrategy] = useState<string>("none");
   const [selectedPartitionColumns, setSelectedPartitionColumns] = useState<string[]>([]);
@@ -219,15 +329,14 @@ export default function LayoutPlaceholderPanel({
   });
   const [latestRun, setLatestRun] = useState<LayoutEvaluation[]>([]);
   const [comparisonList, setComparisonList] = useState<LayoutEvaluation[]>([]);
-  const [latestEvaluationMeta, setLatestEvaluationMeta] = useState<LayoutEvaluationResponse | null>(null);
   const [estimateLoading, setEstimateLoading] = useState(false);
   const [estimateError, setEstimateError] = useState<string | null>(null);
-  const [latestRunSortDirection, setLatestRunSortDirection] = useState<ScoreSortDirection>("asc");
-  const [comparisonListSortDirection, setComparisonListSortDirection] = useState<ScoreSortDirection>("asc");
-  const [layoutSortKey, setLayoutSortKey] = useState<LayoutSortKey>("rangeShare");
+  const [latestRunSortDirection, setLatestRunSortDirection] = useState<ScoreSortDirection>("desc");
+  const [comparisonListSortDirection, setComparisonListSortDirection] = useState<ScoreSortDirection>("desc");
+  const [layoutSortKey, setLayoutSortKey] = useState<LayoutSortKey>("orderingUtility");
   const [layoutSortDirection, setLayoutSortDirection] = useState<ScoreSortDirection>("desc");
   const getScoreValue = (item: LayoutEvaluation): number =>
-    item.composite_score ?? item.avg_record_read_ratio;
+    item.composite_score ?? (1 - item.avg_record_read_ratio);
   const sortEvaluationsByScore = (
     items: LayoutEvaluation[],
     direction: ScoreSortDirection,
@@ -431,8 +540,10 @@ export default function LayoutPlaceholderPanel({
     () => [...designColumns].sort(comparePartitionColumns),
     [designColumns],
   );
-  const effectivePartitionColumns =
-    selectedPartitionStrategy === "none" ? [] : selectedPartitionColumns;
+  const effectivePartitionColumns = useMemo(
+    () => (selectedPartitionStrategy === "none" ? [] : selectedPartitionColumns),
+    [selectedPartitionColumns, selectedPartitionStrategy],
+  );
   const selectedPartitionStrategyLabel = partitionStrategyOptions.find(
     (option) => option.id === selectedPartitionStrategy,
   )?.label ?? selectedPartitionStrategy;
@@ -456,15 +567,19 @@ export default function LayoutPlaceholderPanel({
   );
 
   useEffect(() => {
-    setSelectedCandidateKeys((current) =>
-      current.filter((key) => layoutCandidates.some((candidate) => candidate.key === key)),
-    );
+    setSelectedCandidateKeys((current) => {
+      const next = current.filter((key) =>
+        layoutCandidates.some((candidate) => candidate.key === key),
+      );
+      return next.length === current.length ? current : next;
+    });
   }, [layoutCandidates]);
 
   useEffect(() => {
-    setSelectedColumns((current) =>
-      current.filter((column) => !effectivePartitionColumns.includes(column)),
-    );
+    setSelectedColumns((current) => {
+      const next = current.filter((column) => !effectivePartitionColumns.includes(column));
+      return next.length === current.length ? current : next;
+    });
   }, [effectivePartitionColumns]);
 
   useEffect(() => {
@@ -480,11 +595,10 @@ export default function LayoutPlaceholderPanel({
   useEffect(() => {
     setLatestRun([]);
     setComparisonList([]);
-    setLatestEvaluationMeta(null);
     setEstimateError(null);
     setLatestRunSortDirection("asc");
     setComparisonListSortDirection("asc");
-    setLayoutSortKey("rangeShare");
+    setLayoutSortKey("orderingUtility");
     setLayoutSortDirection("desc");
   }, [datasetSummary?.dataset_id]);
 
@@ -529,7 +643,6 @@ export default function LayoutPlaceholderPanel({
         include_query_estimates: false,
       });
       setLatestRun(response.evaluations);
-      setLatestEvaluationMeta(response);
       setComparisonList((current) => {
         const merged = new Map(current.map((item) => [item.evaluation_id, item]));
         response.evaluations.forEach((item) => {
@@ -550,7 +663,6 @@ export default function LayoutPlaceholderPanel({
   const clearComparisonList = () => {
     setLatestRun([]);
     setComparisonList([]);
-    setLatestEvaluationMeta(null);
     setEstimateError(null);
   };
 
@@ -573,9 +685,7 @@ export default function LayoutPlaceholderPanel({
     );
   };
 
-  const latestRunSortLabel = latestRunSortDirection === "asc" ? "low to high" : "high to low";
   const latestRunSortArrow = latestRunSortDirection === "asc" ? "↑" : "↓";
-  const comparisonListSortLabel = comparisonListSortDirection === "asc" ? "low to high" : "high to low";
   const comparisonListSortArrow = comparisonListSortDirection === "asc" ? "↑" : "↓";
   const layoutSortArrow = layoutSortDirection === "asc" ? "↑" : "↓";
 
@@ -585,6 +695,7 @@ export default function LayoutPlaceholderPanel({
         title="3. Physical Design Exploration"
         collapsed={collapsed}
         onToggle={() => setCollapsed((current) => !current)}
+        action={headerAction}
       />
 
       {!collapsed && (
@@ -593,13 +704,6 @@ export default function LayoutPlaceholderPanel({
             <DesignTimelineStage
               title="Partition Design"
               subtitle="Choose the outer physical split first"
-              description={(
-                <>
-                  Use coarse-grained partition keys to skip large chunks of data first. This stage
-                  combines the design dimension itself with the concrete partition strategy and
-                  partition columns.
-                </>
-              )}
               summary={(
                 <>
                   <span>Strategy: {selectedPartitionStrategyLabel}</span>
@@ -613,12 +717,6 @@ export default function LayoutPlaceholderPanel({
               showSegment
             >
               <div className="design-stage-section">
-                <div className="design-stage-section-head">
-                  <h4>Partition Strategy</h4>
-                  <p className="muted">
-                    Choose whether partitioning is part of this design spec before picking columns.
-                  </p>
-                </div>
                 <label className="partition-switch" aria-label="Toggle partition strategy">
                   <span className="partition-switch-label">No Partition</span>
                   <button
@@ -632,23 +730,35 @@ export default function LayoutPlaceholderPanel({
                   </button>
                   <span className="partition-switch-label">Value Partition</span>
                 </label>
-                <p className="muted design-stage-select-note">
-                  {partitionStrategyOptions.find((option) => option.id === selectedPartitionStrategy)?.description}
-                </p>
-              </div>
-
-              {selectedPartitionStrategy === "value" && (
-                <div className="design-stage-section">
+                {selectedPartitionStrategy === "value" && (
+                  <>
                   <div className="design-stage-section-head">
                     <h4>Partition Columns</h4>
-                    <p className="muted">
-                      This table emphasizes cardinality, equality/IN access, and partition risk.
-                      Good partition columns are usually categorical and equality-heavy.
-                    </p>
                   </div>
-                  {columns.length === 0 ? (
-                    <p className="muted">Load a dataset to populate columns.</p>
-                  ) : (
+                  <div className="design-column-guide" aria-label="Partition column table guide">
+                    {partitionColumnGuide.map((item) => (
+                      <article key={item.label} className="design-column-guide-item">
+                        <strong>{item.label}</strong>
+                        <p>{item.detail}</p>
+                      </article>
+                    ))}
+                  </div>
+                  <div className="design-classification-guide" aria-label="Partition hint and risk legend">
+                    {partitionClassificationGuide.map((group) => (
+                      <article key={group.title} className="design-classification-card">
+                        <strong>{group.title}</strong>
+                        <div className="design-classification-list">
+                          {group.items.map((item) => (
+                            <div key={`${group.title}-${item.label}`} className="design-classification-item">
+                              <span className={`utility-pill utility-pill-${item.level}`}>{item.label}</span>
+                              <p>{item.detail}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {columns.length === 0 ? null : (
                     <div className="table-wrap">
                       <table className="column-selection-table">
                         <thead>
@@ -656,7 +766,7 @@ export default function LayoutPlaceholderPanel({
                             <th>Select</th>
                             <th>Column</th>
                             <th>Type</th>
-                            <th>Cardinality Proxy</th>
+                            <th>Distinctness</th>
                             <th>Equality + IN</th>
                             <th>Workload Freq</th>
                             <th>Partition Risk</th>
@@ -716,22 +826,20 @@ export default function LayoutPlaceholderPanel({
                                 </div>
                               </td>
                               <td>
-                                <div
-                                  className={`utility-hint utility-hint-${column.partitionRisk.level}`}
+                                <span
+                                  className={`utility-pill utility-pill-${column.partitionRisk.level}`}
                                   title={column.partitionRisk.reason}
                                 >
-                                  <strong>{column.partitionRisk.label}</strong>
-                                  <span>{column.partitionRisk.reason}</span>
-                                </div>
+                                  {column.partitionRisk.label}
+                                </span>
                               </td>
                               <td>
-                                <div
-                                  className={`utility-hint utility-hint-${column.partitionHint.level}`}
+                                <span
+                                  className={`utility-pill utility-pill-${column.partitionHint.level}`}
                                   title={column.partitionHint.reason}
                                 >
-                                  <strong>{column.partitionHint.label}</strong>
-                                  <span>{column.partitionHint.reason}</span>
-                                </div>
+                                  {column.partitionHint.label}
+                                </span>
                               </td>
                             </tr>
                           ))}
@@ -739,21 +847,14 @@ export default function LayoutPlaceholderPanel({
                       </table>
                     </div>
                   )}
-                  <p className="muted">Selected partition columns: {selectedPartitionColumns.length}</p>
-                  <p className="muted">Active partition spec: {partitionSpecLabel}</p>
-                </div>
-              )}
+                  </>
+                )}
+              </div>
             </DesignTimelineStage>
 
             <DesignTimelineStage
               title="In-Partition Layout"
               subtitle="Choose ordering behavior inside the selected partitions"
-              description={(
-                <>
-                  After fixing the partition design, choose layout columns, layout strategies, and
-                  permutation candidates for within-partition pruning.
-                </>
-              )}
               summary={(
                 <>
                   <span>Layout columns: {selectedColumns.length}</span>
@@ -774,9 +875,29 @@ export default function LayoutPlaceholderPanel({
               <div className="design-stage-section">
                 <div className="design-stage-section-head">
                   <h4>Layout Columns</h4>
-                  <p className="muted">
-                    This table emphasizes range pressure, selectivity, correlation, and ordering utility.
-                  </p>
+                </div>
+                <div className="design-column-guide" aria-label="Layout column table guide">
+                  {layoutColumnGuide.map((item) => (
+                    <article key={item.label} className="design-column-guide-item">
+                      <strong>{item.label}</strong>
+                      <p>{item.detail}</p>
+                    </article>
+                  ))}
+                </div>
+                <div className="design-classification-guide" aria-label="Ordering hint legend">
+                  {layoutClassificationGuide.map((group) => (
+                    <article key={group.title} className="design-classification-card">
+                      <strong>{group.title}</strong>
+                      <div className="design-classification-list">
+                        {group.items.map((item) => (
+                          <div key={`${group.title}-${item.label}`} className="design-classification-item">
+                            <span className={`utility-pill utility-pill-${item.level}`}>{item.label}</span>
+                            <p>{item.detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </article>
+                  ))}
                 </div>
                 <div className="color-legend">
                   <span><i className="legend-chip legend-chip-neutral" /> no correlation group</span>
@@ -787,27 +908,13 @@ export default function LayoutPlaceholderPanel({
                     grouped by strong correlation
                   </span>
                 </div>
-                <p className="muted">
-                  When correlation has been computed, columns with the same dot color belong to the
-                  same high-association group.
-                </p>
-                <p className="muted">
-                  Lower selectivity means fewer sampled rows survive the predicate or full query,
-                  so the column is usually more promising for pruning.
-                </p>
-                <p className="muted">
-                  Utility hint combines workload frequency, selectivity, and distinct ratio into a
-                  lightweight recommendation. It is only a guide, not a final decision.
-                </p>
                 {effectivePartitionColumns.length > 0 && (
                   <p className="muted">
                     Columns already chosen for partitioning are excluded here so layout selection
                     only works on the remaining columns.
                   </p>
                 )}
-                {columns.length === 0 ? (
-                  <p className="muted">Load a dataset to populate columns.</p>
-                ) : layoutEligibleColumns.length === 0 ? (
+                {columns.length === 0 ? null : layoutEligibleColumns.length === 0 ? (
                   <p className="muted">
                     All available columns are currently assigned to partitioning. Remove one if you want
                     to design an in-partition layout.
@@ -845,7 +952,7 @@ export default function LayoutPlaceholderPanel({
                               title="Distinct ratio in the sampled non-null rows. Higher usually gives layout more room to separate nearby records."
                               onClick={() => toggleLayoutSort("distinctRatio")}
                             >
-                              Cardinality Proxy {layoutSortKey === "distinctRatio" ? layoutSortArrow : ""}
+                              Distinctness {layoutSortKey === "distinctRatio" ? layoutSortArrow : ""}
                             </button>
                           </th>
                           <th>
@@ -1006,13 +1113,12 @@ export default function LayoutPlaceholderPanel({
                               </div>
                             </td>
                             <td>
-                              <div
-                                className={`utility-hint utility-hint-${column.orderingUtility.level}`}
+                              <span
+                                className={`utility-pill utility-pill-${column.orderingUtility.level}`}
                                 title={column.orderingUtility.reason}
                               >
-                                <strong>{column.orderingUtility.label}</strong>
-                                <span>{column.orderingUtility.reason}</span>
-                              </div>
+                                {column.orderingUtility.label}
+                              </span>
                             </td>
                           </tr>
                         ))}
@@ -1024,12 +1130,9 @@ export default function LayoutPlaceholderPanel({
 
               <div className="design-stage-stack">
                 <div className="design-stage-section">
-                  <div className="design-stage-section-head">
-                    <h4>Layout Strategy</h4>
-                    <p className="muted">
-                      Compare no-layout, linear, z-order, and hilbert under the chosen partition design.
-                    </p>
-                  </div>
+                <div className="design-stage-section-head">
+                  <h4>Layout Strategy</h4>
+                </div>
                   <div className="layout-option-grid">
                     {layoutOptions.map((option) => (
                       <label
@@ -1047,10 +1150,9 @@ export default function LayoutPlaceholderPanel({
                             <span className="layout-option-tag">{option.id}</span>
                           </div>
                           <LayoutTypePreview layoutType={option.id} />
-                          <p className="muted">{option.description}</p>
                           {option.platforms.length > 0 && (
                             <div className="layout-platforms">
-                              <span className="layout-platforms-label">Seen in</span>
+                              <span className="layout-platforms-label">Platforms</span>
                               <div className="layout-platform-badges">
                                 {option.platforms.map((platform) => (
                                   <span
@@ -1073,18 +1175,11 @@ export default function LayoutPlaceholderPanel({
                 </div>
 
                 <div className="design-stage-section">
-                  <div className="design-stage-section-head">
-                    <h4>Permutation Candidates</h4>
-                    <p className="muted permutation-hint">
-                      Candidate orderings generated after choosing partition columns, then layout columns.
-                      When correlation is available, ranking prefers orders that keep strongly
-                      associated columns close together and earlier in the layout.
-                    </p>
-                  </div>
+                <div className="design-stage-section-head">
+                  <h4>Permutation Candidates</h4>
+                </div>
                   <div className="table-wrap">
-                    {selectedColumns.length === 0 ? (
-                      <p className="muted">Select layout columns above to generate permutations.</p>
-                    ) : layoutCandidates.length === 0 ? (
+                    {selectedColumns.length === 0 ? null : layoutCandidates.length === 0 ? (
                       <p className="muted">No candidates generated.</p>
                     ) : (
                       <table className="permutation-table">
@@ -1141,31 +1236,6 @@ export default function LayoutPlaceholderPanel({
                       columns for full enumeration.
                     </p>
                   )}
-                  <p className="muted">Selected permutation candidates: {selectedCandidateKeys.length}</p>
-                  <p className="muted">Total candidates to try: {totalCandidateCount}</p>
-                  <p className="muted">
-                    Breakdown: {selectedCandidateKeys.length} permutations x {selectedPhysicalLayoutCount} layout
-                    types
-                    {selectedLayoutTypes.includes("no layout") ? " + 1 standalone no-layout case" : ""}
-                  </p>
-                  <p className="muted">Combined physical design spec: {partitionSpecLabel}</p>
-                  {effectivePartitionColumns.length > 0 && (
-                    <p className="muted">
-                      Candidate counting is evaluated under the current partition spec, then layout
-                      choices are applied within the touched partitions.
-                    </p>
-                  )}
-                  {latestEvaluationMeta && (
-                    <>
-                      <p className="muted">
-                        Evaluation basis: {latestEvaluationMeta.total_queries} queries, sample ratio{" "}
-                        {(latestEvaluationMeta.sample_ratio * 100).toFixed(2)}%,{" "}
-                        {latestEvaluationMeta.total_row_groups} simulated row groups.
-                      </p>
-                      <p className="muted">Partition spec in evaluation: {partitionSpecLabel}</p>
-                      <p className="muted">Composite score is optional and cost-like: lower is better.</p>
-                    </>
-                  )}
                   <div className="sample-actions">
                     <button
                       type="button"
@@ -1185,10 +1255,6 @@ export default function LayoutPlaceholderPanel({
                       Clear Comparison List
                     </button>
                   </div>
-                  <p className="muted">
-                    The current backend uses real sample-pruning evaluation for `no layout` and
-                    `linear`, and deterministic mock evaluation for `zorder` and `hilbert`.
-                  </p>
                   {estimateError && <p className="error">{estimateError}</p>}
                 </div>
               </div>
@@ -1197,12 +1263,6 @@ export default function LayoutPlaceholderPanel({
 
           <CollapsibleSubsection
             title="Current Design Summary"
-            note={(
-              <p className="muted">
-                Roll-up of the partition and layout choices above. This is the physical design spec
-                that will be sent into evaluation.
-              </p>
-            )}
           >
             <div className="design-rollup-grid">
               <article className="design-rollup-card">
@@ -1229,10 +1289,7 @@ export default function LayoutPlaceholderPanel({
           </CollapsibleSubsection>
 
           {latestRun.length > 0 && (
-            <CollapsibleSubsection
-              title="Latest Run"
-              note={<p className="muted">sorted by score, {latestRunSortLabel}</p>}
-            >
+            <CollapsibleSubsection title="Latest Run">
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -1273,10 +1330,7 @@ export default function LayoutPlaceholderPanel({
           )}
 
           {comparisonList.length > 0 && (
-            <CollapsibleSubsection
-              title="Comparison List"
-              note={<p className="muted">sorted by score, {comparisonListSortLabel}</p>}
-            >
+            <CollapsibleSubsection title="Comparison List">
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -1317,10 +1371,6 @@ export default function LayoutPlaceholderPanel({
                   </tbody>
                 </table>
               </div>
-              <p className="muted">
-                Use the Verification section to select comparison candidates and run mock actual
-                benchmark results.
-              </p>
             </CollapsibleSubsection>
           )}
         </>
@@ -1378,7 +1428,26 @@ function compareLayoutColumns(
   }
 
   if (result === 0) {
-    result = left.name.localeCompare(right.name);
+    const byRangeShare = left.rangeShare - right.rangeShare;
+    if (byRangeShare !== 0) {
+      result = byRangeShare;
+    } else {
+      const byPredicateSel = compareNullableNumber(
+        left.avgPredicateSelectivity,
+        right.avgPredicateSelectivity,
+        true,
+      );
+      if (byPredicateSel !== 0) {
+        result = -byPredicateSel;
+      } else {
+        const byCorrelation = left.correlationStrength - right.correlationStrength;
+        if (byCorrelation !== 0) {
+          result = byCorrelation;
+        } else {
+          result = left.name.localeCompare(right.name);
+        }
+      }
+    }
   }
   return result * multiplier;
 }

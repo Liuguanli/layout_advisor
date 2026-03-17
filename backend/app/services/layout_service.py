@@ -549,7 +549,7 @@ class LayoutService:
                     )
                 )
 
-        evaluations.sort(key=lambda item: _score_value(item))
+        evaluations.sort(key=lambda item: _score_value(item), reverse=True)
         return LayoutEvaluationResponse(
             dataset_id=dataset_summary.dataset_id,
             workload_loaded=True,
@@ -777,28 +777,34 @@ def compute_composite_score(
     max_layout_columns: int,
     weights: ScoreWeights,
 ) -> float:
-    """Compute an optional cost-like composite score.
+    """Compute an optional utility-like composite score.
 
-    Lower is better.
-    - Rewards read saving and benefit coverage
-    - Penalizes worst-case scans
+    Higher is better.
+    - Rewards average read saving
+    - Rewards workload coverage with material benefit
+    - Rewards better worst-case pruning
     - Penalizes more complex layouts
     - Penalizes wider layouts with more columns
+    - Penalizes the baseline no-layout case so it does not dominate by avoiding
+      all structural penalties
     """
 
     avg_read_saving = 1.0 - avg_record_read_ratio
+    worst_case_saving = 1.0 - worst_query_read_ratio
     complexity_penalty = layout_complexity / 3 if layout_complexity > 0 else 0.0
     column_penalty = num_layout_columns / max(max_layout_columns, 1)
+    no_layout_penalty = 0.15 if layout_complexity == 0 and num_layout_columns == 0 else 0.0
+
     utility = (
         weights.read_saving_weight * avg_read_saving
         + weights.coverage_weight * benefit_coverage_30
+        + weights.worst_case_penalty_weight * worst_case_saving
     )
-    penalty = (
-        weights.worst_case_penalty_weight * worst_query_read_ratio
-        + weights.layout_complexity_penalty_weight * complexity_penalty
+    structural_penalty = (
+        weights.layout_complexity_penalty_weight * complexity_penalty
         + weights.num_columns_penalty_weight * column_penalty
     )
-    return max(0.0, 1.0 - utility + penalty)
+    return max(0.0, min(1.0, utility - structural_penalty - no_layout_penalty))
 
 
 def layout_complexity_for(layout_type: str) -> int:
@@ -820,7 +826,7 @@ def _score_value(evaluation: LayoutEvaluation) -> float:
     return (
         evaluation.composite_score
         if evaluation.composite_score is not None
-        else evaluation.avg_record_read_ratio
+        else 1.0 - evaluation.avg_record_read_ratio
     )
 
 

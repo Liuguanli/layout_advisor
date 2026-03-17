@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 
 import DatasetUploadPanel from "../components/DatasetUploadPanel";
 import LayoutPlaceholderPanel from "../components/LayoutPlaceholderPanel";
-import RightSidebarNav from "../components/RightSidebarNav";
 import VerificationPanel from "../components/VerificationPanel";
 import WorkloadUploadPanel from "../components/WorkloadUploadPanel";
 import {
@@ -21,12 +20,19 @@ import {
   WorkloadUploadResponse,
 } from "../lib/types";
 
+type TopTabId = "dataset" | "workload" | "layout" | "verification";
+type TopTab = {
+  id: TopTabId;
+  label: string;
+  note: string;
+};
+
 export default function HomePage() {
-  const navItems = [
-    { id: "dataset-section", label: "Dataset", note: "catalog and profiles" },
-    { id: "workload-section", label: "Workload", note: "catalog and analysis" },
-    { id: "layout-section", label: "Physical Design", note: "partition, layout, future knobs" },
-    { id: "verification-section", label: "Verification", note: "estimated vs actual" },
+  const tabs: TopTab[] = [
+    { id: "dataset", label: "Dataset", note: "Load data" },
+    { id: "workload", label: "Workload", note: "Load queries" },
+    { id: "layout", label: "Physical Design", note: "Choose design" },
+    { id: "verification", label: "Verification", note: "Validate ranking" },
   ];
   const [datasetSummary, setDatasetSummary] = useState<DatasetSummary | null>(null);
   const [datasetOptions, setDatasetOptions] = useState<StaticDatasetItem[]>([]);
@@ -39,6 +45,59 @@ export default function HomePage() {
   const [comparisonList, setComparisonList] = useState<LayoutEvaluation[]>([]);
   const [globalLoadingCount, setGlobalLoadingCount] = useState(0);
   const [globalLoadingLabel, setGlobalLoadingLabel] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TopTabId>("dataset");
+  const [verificationComplete, setVerificationComplete] = useState(false);
+
+  const datasetComplete = Boolean(datasetSummary?.dataset_id);
+  const workloadComplete = Boolean(workloadSummary && workloadSummary.total_queries > 0);
+  const layoutComplete = comparisonList.length > 0;
+  const verificationReady = layoutComplete;
+
+  const tabEnabled: Record<TopTabId, boolean> = {
+    dataset: true,
+    workload: datasetComplete,
+    layout: workloadComplete,
+    verification: verificationReady,
+  };
+
+  const tabComplete: Record<TopTabId, boolean> = {
+    dataset: datasetComplete,
+    workload: workloadComplete,
+    layout: layoutComplete,
+    verification: verificationComplete,
+  };
+
+  const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const nextTab = activeTabIndex >= 0 ? tabs[activeTabIndex + 1] ?? null : null;
+  const canAdvanceToNext = Boolean(nextTab && tabEnabled[nextTab.id]);
+  const nextStepButton = (
+    <button
+      type="button"
+      className="page-shell-next-button"
+      onClick={() => {
+        if (nextTab && tabEnabled[nextTab.id]) {
+          setActiveTab(nextTab.id);
+        }
+      }}
+      disabled={!canAdvanceToNext}
+    >
+      Next Step
+    </button>
+  );
+
+  useEffect(() => {
+    const nextTab = verificationReady
+      ? "verification"
+      : workloadComplete
+        ? "layout"
+        : datasetComplete
+          ? "workload"
+          : "dataset";
+
+    if (!tabEnabled[activeTab]) {
+      setActiveTab(nextTab);
+    }
+  }, [activeTab, datasetComplete, verificationReady, workloadComplete]);
 
   const beginGlobalLoading = useCallback((label: string) => {
     setGlobalLoadingLabel(label);
@@ -81,6 +140,8 @@ export default function HomePage() {
 
   const handleDatasetSelected = (summary: DatasetSummary | null) => {
     setDatasetSummary(summary);
+    setComparisonList([]);
+    setVerificationComplete(false);
     setWarning(null);
   };
 
@@ -88,6 +149,8 @@ export default function HomePage() {
     if (!result) {
       setWorkloadUploadResult(null);
       setWorkloadSummary(null);
+      setComparisonList([]);
+      setVerificationComplete(false);
       setWarning(null);
       return;
     }
@@ -96,12 +159,16 @@ export default function HomePage() {
 
     if (result.imported_queries === 0) {
       setWorkloadSummary(null);
+      setComparisonList([]);
+      setVerificationComplete(false);
       setWarning("No valid queries were loaded. Check workload file and try again.");
       return;
     }
 
     const summary = await fetchWorkloadSummary();
     setWorkloadSummary(summary);
+    setComparisonList([]);
+    setVerificationComplete(false);
     setWarning(
       result.failed_queries > 0
         ? `${result.failed_queries} query lines failed parsing and were skipped.`
@@ -111,14 +178,6 @@ export default function HomePage() {
 
   return (
     <main className="page">
-      {globalLoadingCount > 0 && (
-        <div className="page-loading-overlay" role="status" aria-live="polite" aria-busy="true">
-          <div className="page-loading-card">
-            <div className="page-loading-spinner" aria-hidden="true" />
-            <p>{globalLoadingLabel ?? "Loading"}</p>
-          </div>
-        </div>
-      )}
       <header className="header">
         <h1>Layout Exploration System Prototype</h1>
       </header>
@@ -126,18 +185,86 @@ export default function HomePage() {
       {statusMessage && <p className="warning">{statusMessage}</p>}
       {warning && <p className="warning">{warning}</p>}
 
+      <nav className="top-tabs" aria-label="Primary sections">
+        <div className="top-tabs-list" role="tablist" aria-orientation="horizontal">
+          {tabs.map((tab, index) => {
+            const enabled = tabEnabled[tab.id];
+            const complete = tabComplete[tab.id];
+            const isActive = activeTab === tab.id;
+            const statusLabel = complete
+              ? "Completed step"
+              : isActive
+                ? "In progress"
+                : enabled
+                  ? "Ready step"
+                  : "Unavailable step";
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`${tab.id}-panel`}
+                id={`${tab.id}-tab`}
+                aria-label={`${tab.label}. ${statusLabel}`}
+                disabled={!enabled}
+                className={`top-tab-card ${index === 0 ? "is-first" : ""} ${index === tabs.length - 1 ? "is-last" : ""} ${isActive ? "is-active" : ""} ${complete ? "is-complete" : ""} ${!enabled ? "is-locked" : ""}`}
+                onClick={() => {
+                  if (enabled) {
+                    setActiveTab(tab.id);
+                  }
+                }}
+              >
+                <span
+                  className={`top-tab-marker ${complete ? "is-complete" : isActive ? "is-active" : enabled ? "is-ready" : "is-locked"}`}
+                  aria-hidden="true"
+                >
+                  <span className="top-tab-dot" />
+                </span>
+                <div className="top-tab-copy">
+                  <strong>{tab.label}</strong>
+                  <small>{tab.note}</small>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       <div className="page-shell">
+        {globalLoadingCount > 0 && (
+          <div className="page-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+            <div className="page-loading-card">
+              <div className="page-loading-spinner" aria-hidden="true" />
+              <p>{globalLoadingLabel ?? "Loading"}</p>
+            </div>
+          </div>
+        )}
         <div className="panel-stack">
-          <section id="dataset-section" className="anchor-section">
+          <section
+            id="dataset-panel"
+            role="tabpanel"
+            aria-labelledby="dataset-tab"
+            className={`tab-panel ${activeTab === "dataset" ? "is-active" : ""}`}
+            hidden={activeTab !== "dataset"}
+          >
             <DatasetUploadPanel
               datasetSummary={datasetSummary}
               datasetOptions={datasetOptions}
               onSelected={handleDatasetSelected}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
+              headerAction={nextStepButton}
             />
           </section>
-          <section id="workload-section" className="anchor-section">
+          <section
+            id="workload-panel"
+            role="tabpanel"
+            aria-labelledby="workload-tab"
+            className={`tab-panel ${activeTab === "workload" ? "is-active" : ""}`}
+            hidden={activeTab !== "workload"}
+          >
             <WorkloadUploadPanel
               uploadResult={workloadUploadResult}
               workloadOptions={workloadOptions}
@@ -145,9 +272,16 @@ export default function HomePage() {
               onSelected={handleWorkloadSelected}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
+              headerAction={nextStepButton}
             />
           </section>
-          <section id="layout-section" className="anchor-section">
+          <section
+            id="layout-panel"
+            role="tabpanel"
+            aria-labelledby="layout-tab"
+            className={`tab-panel ${activeTab === "layout" ? "is-active" : ""}`}
+            hidden={activeTab !== "layout"}
+          >
             <LayoutPlaceholderPanel
               columns={datasetSummary?.columns.map((column) => column.name) ?? []}
               datasetSummary={datasetSummary}
@@ -155,17 +289,25 @@ export default function HomePage() {
               onComparisonListChange={setComparisonList}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
+              headerAction={nextStepButton}
             />
           </section>
-          <section id="verification-section" className="anchor-section">
+          <section
+            id="verification-panel"
+            role="tabpanel"
+            aria-labelledby="verification-tab"
+            className={`tab-panel ${activeTab === "verification" ? "is-active" : ""}`}
+            hidden={activeTab !== "verification"}
+          >
             <VerificationPanel
               datasetSummary={datasetSummary}
               workloadSummary={workloadSummary}
               comparisonList={comparisonList}
+              onStatusChange={setVerificationComplete}
+              headerAction={nextStepButton}
             />
           </section>
         </div>
-        <RightSidebarNav items={navItems} />
       </div>
     </main>
   );

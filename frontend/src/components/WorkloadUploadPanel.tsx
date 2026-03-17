@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 import { selectWorkload } from "../lib/api";
 import { StaticWorkloadItem, WorkloadSummary, WorkloadUploadResponse } from "../lib/types";
@@ -15,6 +15,7 @@ type WorkloadUploadPanelProps = {
   onSelected: (result: WorkloadUploadResponse | null) => Promise<void>;
   onGlobalLoadingStart?: (label: string) => void;
   onGlobalLoadingEnd?: () => void;
+  headerAction?: ReactNode;
 };
 
 export default function WorkloadUploadPanel({
@@ -24,6 +25,7 @@ export default function WorkloadUploadPanel({
   onSelected,
   onGlobalLoadingStart,
   onGlobalLoadingEnd,
+  headerAction,
 }: WorkloadUploadPanelProps) {
   const defaultId = useMemo(
     () => "",
@@ -76,6 +78,7 @@ export default function WorkloadUploadPanel({
         title="2. Query Workload Selection (Static Catalog)"
         collapsed={collapsed}
         onToggle={() => setCollapsed((current) => !current)}
+        action={headerAction}
       />
 
       {!collapsed && (
@@ -109,13 +112,6 @@ export default function WorkloadUploadPanel({
               Load Workload
             </button>
           </form>
-
-          {workloadOptions.length > 0 && (
-            <p className="muted">
-              Selected source path:{" "}
-              {workloadOptions.find((item) => item.workload_id === workloadId)?.file_path ?? "-"}
-            </p>
-          )}
 
           {error && <p className="error">{error}</p>}
 

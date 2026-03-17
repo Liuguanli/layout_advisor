@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   fetchDatasetCorrelation,
@@ -25,6 +25,7 @@ type DatasetUploadPanelProps = {
   onSelected: (summary: DatasetSummary | null) => void;
   onGlobalLoadingStart?: (label: string) => void;
   onGlobalLoadingEnd?: () => void;
+  headerAction?: ReactNode;
 };
 
 export default function DatasetUploadPanel({
@@ -33,6 +34,7 @@ export default function DatasetUploadPanel({
   onSelected,
   onGlobalLoadingStart,
   onGlobalLoadingEnd,
+  headerAction,
 }: DatasetUploadPanelProps) {
   const defaultId = useMemo(
     () => "",
@@ -55,8 +57,14 @@ export default function DatasetUploadPanel({
   const lastDatasetIdRef = useRef<string | null>(null);
   const profileSampleSize = datasetSummary?.profile_sample_size ?? datasetSummary?.row_count ?? 0;
   const rowCount = datasetSummary?.row_count ?? 0;
-  const columnProfiles = datasetSummary?.column_profiles ?? [];
-  const datasetColumns = datasetSummary?.columns ?? [];
+  const columnProfiles = useMemo(
+    () => datasetSummary?.column_profiles ?? [],
+    [datasetSummary?.column_profiles],
+  );
+  const datasetColumns = useMemo(
+    () => datasetSummary?.columns ?? [],
+    [datasetSummary?.columns],
+  );
   const datasetColumnNames = useMemo(
     () => datasetColumns.map((column) => column.name),
     [datasetColumns],
@@ -112,15 +120,15 @@ export default function DatasetUploadPanel({
     const nextDatasetId = datasetSummary?.dataset_id ?? null;
     if (!nextDatasetId) {
       lastDatasetIdRef.current = null;
-      setSelectedProfileColumns([]);
+      setSelectedProfileColumns((current) => (current.length === 0 ? current : []));
       return;
     }
     if (lastDatasetIdRef.current === nextDatasetId) {
       return;
     }
     lastDatasetIdRef.current = nextDatasetId;
-    setSelectedProfileColumns(datasetColumnNames);
-  }, [datasetSummary?.dataset_id, datasetColumnKey, datasetColumnNames]);
+    setSelectedProfileColumns((current) => (current.length === 0 ? current : []));
+  }, [datasetSummary?.dataset_id, datasetColumnKey]);
 
   const parsedSampleInput = Number.parseInt(sampleInput, 10);
   const requestedSampleSize = Number.isFinite(parsedSampleInput)
@@ -238,6 +246,7 @@ export default function DatasetUploadPanel({
         title="1. Dataset Selection (Static Catalog)"
         collapsed={collapsed}
         onToggle={() => setCollapsed((current) => !current)}
+        action={headerAction}
       />
 
       {!collapsed && (
@@ -272,22 +281,12 @@ export default function DatasetUploadPanel({
             </button>
           </form>
 
-          {datasetOptions.length > 0 && (
-            <p className="muted">
-              Selected source path:{" "}
-              {datasetOptions.find((item) => item.dataset_id === datasetId)?.file_path ?? "-"}
-            </p>
-          )}
-
           {error && <p className="error">{error}</p>}
 
           {datasetSummary && (
             <div className="summary-block">
               <p>
                 <strong>Rows:</strong> {datasetSummary.row_count}
-              </p>
-              <p className="muted">
-                Profiles computed from {profileSampleSize.toLocaleString()} sampled rows.
               </p>
               <CollapsibleSubsection
                 title="Profile Sample"
@@ -360,13 +359,6 @@ export default function DatasetUploadPanel({
                     </p>
                   )}
                 </div>
-                <p className="muted">
-                  Ratio slider covers 0.1% to 5%. Use the sample-row input for larger samples.
-                </p>
-                <p className="muted">
-                  Profile charts and schema-level sampled stats refresh after Apply. Exact
-                  correlation stays full-scan and does not depend on sample size.
-                </p>
                 {sampleLoading && <p className="muted">Refreshing sampled statistics...</p>}
                 {sampleError && <p className="error">{sampleError}</p>}
               </CollapsibleSubsection>
@@ -400,14 +392,9 @@ export default function DatasetUploadPanel({
                   </>
                 )}
                 note={(
-                  <>
-                    <p className="muted">
-                      {datasetSummary.columns.length} columns, {selectedProfileColumns.length} selected for profiles
-                    </p>
-                    <p className="muted">
-                      These checkboxes only control Column Profiles. Correlation is computed across all columns.
-                    </p>
-                  </>
+                  <p className="muted">
+                    {selectedProfileColumns.length}/{datasetSummary.columns.length} profiles selected
+                  </p>
                 )}
               >
                 <div className="schema-pill-list">
@@ -477,10 +464,7 @@ export default function DatasetUploadPanel({
                 )}
               </CollapsibleSubsection>
 
-              <DatasetProfilesPanel
-                profiles={visibleProfiles}
-                sampleSize={profileSampleSize}
-              />
+              <DatasetProfilesPanel profiles={visibleProfiles} />
               <DatasetCorrelationPanel
                 correlationSummary={correlationSummary}
                 loading={correlationLoading}
