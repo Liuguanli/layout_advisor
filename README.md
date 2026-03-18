@@ -1,69 +1,68 @@
 # Layout Exploration System Prototype
 
-This project is a local prototype for exploring physical design choices for lakehouse-style datasets.
-It lets you:
+This repository is a local prototype for exploring lakehouse physical design choices from both the dataset side and the workload side. The system supports four stages:
 
-1. load a dataset from a backend catalog
-2. load a SQL workload from a backend catalog
-3. inspect dataset/workload statistics
-4. compare partition and layout candidates
-5. run a mock verification flow and preview platform-specific configuration snippets
+1. dataset selection and profiling
+2. workload selection and parsing
+3. physical design exploration
+4. verification and config preview
 
-The system is split into:
+The codebase is split into:
 
-- `backend/`: FastAPI service for catalogs, profiling, workload parsing, layout evaluation, and mock execution
-- `frontend/`: Next.js UI for dataset/workload analysis and physical design exploration
-- `examples/`: example workload files and helper scripts
+- `backend/`: FastAPI service for dataset catalogs, workload catalogs, profiling, parsing, evaluation, and mock execution
+- `frontend/`: Next.js UI
+- `examples/`: example workload files and generation scripts
+
+This README is written for collaborators who clone the repo onto their own machine.
 
 ## What Is Machine-Specific
 
-The most important setup detail is:
+The most important point is:
 
-- `backend/app/config/dataset_catalog.py` is expected to point to dataset files on the local machine
+- `backend/app/config/dataset_catalog.py` is local-machine specific
 
-This means the README must not assume your local dataset path matches mine. If another person clones this repo, they must update the dataset catalog before the UI can load any dataset.
+That file currently contains absolute dataset paths. A collaborator must update those paths before the backend can load any dataset.
 
-`backend/app/config/workload_catalog.py` is already safer because it uses project-relative paths for the example workloads.
+`backend/app/config/workload_catalog.py` is easier to share because it mostly uses project-relative paths into `examples/`.
+
+If a collaborator can open the UI but cannot load datasets, the dataset catalog is the first place to check.
 
 ## Prerequisites
 
-- Python 3.10+ recommended
-- Node.js 18+ recommended
+- Python 3.10+
+- Node.js 18+
 - `npm`
 
 ## Repository Structure
 
-- `backend/app/config/dataset_catalog.py`
-  machine-specific dataset entries
-- `backend/app/config/workload_catalog.py`
-  workload entries
-- `backend/app/api/routes/`
-  REST endpoints
-- `backend/app/services/`
-  dataset/workload/layout logic
-- `backend/app/utils/sql_parser.py`
-  SQL predicate parsing
-- `frontend/src/components/`
-  UI panels
-- `frontend/src/lib/api.ts`
-  frontend API client
+- `backend/app/config/dataset_catalog.py`: static dataset catalog, local paths
+- `backend/app/config/workload_catalog.py`: static workload catalog
+- `backend/app/api/routes/`: backend REST routes
+- `backend/app/services/`: profiling, workload analysis, layout evaluation
+- `backend/app/utils/sql_parser.py`: predicate parsing logic
+- `backend/tests/`: backend unit tests
+- `frontend/src/app/`: Next.js app entry and shared CSS
+- `frontend/src/components/`: UI panels
+- `frontend/src/lib/api.ts`: frontend API client
 
-## Step 1: Configure the Dataset Catalog
+## Quick Start
 
-Open:
+### 1. Clone and enter the repo
 
-- `backend/app/config/dataset_catalog.py`
+```bash
+git clone <your-repo-url>
+cd layout_advisor
+```
+
+### 2. Configure datasets
+
+Edit [backend/app/config/dataset_catalog.py](/Users/guanl1/Dropbox/PostDoc/topics/LakeHouse/layout_advisor/backend/app/config/dataset_catalog.py).
 
 Each entry needs:
 
 - `dataset_id`
 - `name`
 - `file_path`
-
-`file_path` can be:
-
-- a file path such as `.../tpch_1.parquet`
-- a directory path containing one supported dataset file
 
 Supported dataset formats:
 
@@ -72,9 +71,12 @@ Supported dataset formats:
 - `.csv`
 - `.tbl`
 
-If `file_path` is a directory, the backend will pick the first supported file it finds.
+`file_path` may point to:
 
-### Example
+- a single file
+- a directory containing one supported data file
+
+Example:
 
 ```python
 DATASET_CATALOG = [
@@ -84,27 +86,22 @@ DATASET_CATALOG = [
         "file_path": "/absolute/path/to/tpch_1.parquet",
     },
     {
-        "dataset_id": "orders_csv",
-        "name": "Orders CSV",
-        "file_path": "/absolute/path/to/orders.csv",
+        "dataset_id": "tpch_4_parquet",
+        "name": "TPCH Dataset (tpch_4.parquet)",
+        "file_path": "/absolute/path/to/tpch_4.parquet",
     },
 ]
 ```
 
-### Important
+Notes:
 
-Do not keep my personal path unless that file actually exists on your machine.
+- do not keep someone else's absolute path unless that file exists on your machine
+- if your datasets are on an external drive, use the mounted absolute path visible on your machine
+- if the catalog points to missing files, catalog loading or dataset selection will fail
 
-If the path is wrong, the frontend will usually show errors such as:
+### 3. Check workloads
 
-- `Dataset catalog could not be loaded from the backend`
-- dataset loads but selection fails because the configured file does not exist
-
-## Step 2: Configure the Workload Catalog
-
-Open:
-
-- `backend/app/config/workload_catalog.py`
+Open [backend/app/config/workload_catalog.py](/Users/guanl1/Dropbox/PostDoc/topics/LakeHouse/layout_advisor/backend/app/config/workload_catalog.py).
 
 Each workload entry needs:
 
@@ -112,45 +109,41 @@ Each workload entry needs:
 - `name`
 - `file_path`
 
-The workload file should be a text file with one SQL query per line.
+The workload file format is simple:
 
-The current repo already includes example workload files under `examples/`, so most users can keep this file as-is unless they want their own workload.
+- one SQL query per line
 
-### Example
+The repository already includes:
 
-```python
-WORKLOAD_CATALOG = [
-    {
-        "workload_id": "lineitem_1000",
-        "name": "TPC-H Lineitem Workload (1000 queries)",
-        "file_path": str(PROJECT_ROOT / "examples" / "queries.txt"),
-    }
-]
-```
+- `examples/queries.txt`
+- `examples/queries_rich_1000.txt`
 
-## Step 3: Start the Backend
+Most collaborators can keep the workload catalog unchanged unless they want to add their own workloads.
 
-From the project root:
+## Local Development Setup
+
+### Backend
 
 ```bash
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --port 8001
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
-Backend URL:
+Backend URLs:
 
-- `http://127.0.0.1:8001`
+- root: `http://127.0.0.1:8001`
+- health: `http://127.0.0.1:8001/api/health`
 
-Quick health check:
+Quick check:
 
 ```bash
 curl http://127.0.0.1:8001/api/health
 ```
 
-## Step 4: Start the Frontend
+### Frontend
 
 Open a second terminal:
 
@@ -164,38 +157,89 @@ Frontend URL:
 
 - `http://localhost:3000`
 
-By default the frontend uses:
+By default the frontend talks to:
 
 - `http://127.0.0.1:8001`
 
-for the backend API.
-
-If you run the backend on another host or port, start the frontend like this:
+If you need a different backend host or port:
 
 ```bash
 cd frontend
 NEXT_PUBLIC_API_BASE=http://127.0.0.1:8001 npm run dev
 ```
 
-## Step 5: Use the UI
+## First Run in the UI
 
 1. Open `http://localhost:3000`
-2. In `Dataset Selection`, choose a dataset from the configured dataset catalog and click `Load Dataset`
-3. In `Workload Selection`, choose a workload and click `Load Workload`
+2. In `1. Dataset Selection`, choose a dataset and click `Load Dataset`
+3. In `2. Query Workload Selection`, choose a workload and click `Load Workload`
 4. Optionally compute correlation
-5. In `Physical Design Exploration`, choose:
-   - partition strategy
-   - partition columns
+5. In `3. Physical Design Exploration`, choose:
+   - partition design
    - layout columns
    - layout strategy
    - permutation candidates
 6. Click `Run Layout Evaluation`
-7. In `Verification`, choose candidates and run the mock benchmark
+7. In `4. Verification`, choose candidates and run the mock benchmark
 
-## Endpoints
+## LAN / Same-Wi-Fi Sharing
 
-Main backend routes:
+If you want other people on the same Wi-Fi network to use your running app from your machine:
 
+### 1. Start backend on all interfaces
+
+```bash
+cd backend
+source .venv/bin/activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+```
+
+### 2. Set the frontend API base to your LAN IP
+
+From `frontend/`:
+
+```bash
+printf 'NEXT_PUBLIC_API_BASE=http://YOUR_LAN_IP:8001\n' > .env.local
+```
+
+Example:
+
+```bash
+printf 'NEXT_PUBLIC_API_BASE=http://192.168.0.238:8001\n' > .env.local
+```
+
+### 3. Start frontend on all interfaces
+
+```bash
+cd frontend
+npm run dev -- --hostname 0.0.0.0 --port 3000
+```
+
+### 4. Share the LAN URL
+
+Other people on the same Wi-Fi should open:
+
+```text
+http://YOUR_LAN_IP:3000
+```
+
+Notes:
+
+- backend CORS is already configured for `localhost`, `127.0.0.1`, and common private LAN ranges
+- only your machine needs access to the dataset files
+- collaborators using your running service do not need local copies of the datasets
+
+To find your LAN IP on macOS:
+
+```bash
+ipconfig getifaddr en0
+```
+
+## Backend API Endpoints
+
+Main routes:
+
+- `GET /`
 - `GET /api/health`
 - `GET /api/dataset/catalog`
 - `POST /api/dataset/select`
@@ -208,65 +252,24 @@ Main backend routes:
 - `POST /api/layout/evaluate`
 - `POST /api/layout/mock-execute`
 
-## Supported Workload Parsing
+## SQL Workload Support
 
-The parser currently focuses on `SELECT ... FROM ... WHERE ...` style workloads and supports common predicate patterns such as:
+The parser is aimed at `SELECT ... FROM ... WHERE ...` workloads and currently supports:
 
 - equality: `=`
 - inequality: `!=`
 - range: `>`, `>=`, `<`, `<=`, `BETWEEN`
 - `IN (...)`
-- prefix `LIKE 'x%'`
-- suffix `LIKE '%x'`
-- contains `LIKE '%x%'`
-- conjunction flattening with `AND`
+- `LIKE 'x%'`
+- `LIKE '%x'`
+- `LIKE '%x%'`
+- conjunction flattening over `AND`
 
-Unsupported SQL patterns may be ignored during predicate extraction.
+Unsupported SQL constructs may be ignored during predicate extraction.
 
-## Troubleshooting
+## Tests and Verification
 
-### Dataset catalog cannot be loaded
-
-Check:
-
-- backend is running on `127.0.0.1:8001`
-- `backend/app/config/dataset_catalog.py` has valid local paths
-- the configured dataset files actually exist
-
-### Workload catalog cannot be loaded
-
-Check:
-
-- backend is running
-- `backend/app/config/workload_catalog.py` points to real workload files
-
-### Frontend cannot reach the backend
-
-Check:
-
-- backend port is `8001`
-- `NEXT_PUBLIC_API_BASE` matches the backend URL
-
-### Dataset selection fails after catalog loads
-
-Usually this means:
-
-- the catalog entry exists
-- but `file_path` is invalid on the current machine
-
-### Python environment issues
-
-Use the backend virtual environment explicitly:
-
-```bash
-cd backend
-source .venv/bin/activate
-which python
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --reload --port 8001
-```
-
-## Optional Backend Test
+### Backend tests
 
 ```bash
 cd backend
@@ -274,21 +277,81 @@ source .venv/bin/activate
 PYTHONPATH=. python -m unittest discover -s tests
 ```
 
-## Notes
+### Frontend production build
 
-- State is in-memory only
-- There is no persistence, auth, or job queue
-- Dataset/workload ingestion in this prototype is catalog-based, not browser upload
-- Correlation is computed on demand
-- Layout evaluation is partly real and partly mock:
-  - `no layout` and `linear` use the sample-based evaluation path
-  - `zorder` and `hilbert` still rely on deterministic mock behavior
+```bash
+cd frontend
+npm run build
+```
 
-## Recommended First-Time Setup Checklist
+## Common Troubleshooting
 
-Before telling someone else to run the pipeline, verify these four things:
+### `Dataset catalog could not be loaded from the backend`
 
-1. `backend/app/config/dataset_catalog.py` points to real files on their machine
-2. `backend/app/config/workload_catalog.py` points to real workload files
-3. backend starts on port `8001`
-4. frontend can load both catalogs from the UI
+Check:
+
+- backend is running
+- backend is reachable at the configured host and port
+- `dataset_catalog.py` has valid paths
+
+### `Workload catalog could not be loaded from the backend`
+
+Check:
+
+- backend is running
+- workload files in `workload_catalog.py` exist
+
+### Dataset selection fails after the catalog loads
+
+Usually this means:
+
+- the catalog entry exists
+- but `file_path` does not exist on the current machine
+
+### Frontend opens but cannot reach the backend
+
+Check:
+
+- backend is running on port `8001`
+- `NEXT_PUBLIC_API_BASE` matches the backend URL
+- if using LAN mode, backend was started with `--host 0.0.0.0`
+
+### Same-Wi-Fi users can open the frontend but still see backend errors
+
+Check:
+
+- `.env.local` points to your LAN IP, not `127.0.0.1`
+- backend is bound to `0.0.0.0`
+- local firewall is not blocking incoming connections
+
+## Collaboration Notes
+
+Before opening a PR or sharing the branch with another collaborator:
+
+1. confirm `backend/app/config/dataset_catalog.py` is correct for your own machine
+2. avoid committing personal one-off dataset paths unless the team explicitly wants them in the shared catalog
+3. verify backend tests still pass
+4. verify `frontend` still builds
+
+Recommended pre-share checks:
+
+```bash
+cd backend
+source .venv/bin/activate
+PYTHONPATH=. python -m unittest discover -s tests
+```
+
+```bash
+cd frontend
+npm run build
+```
+
+## Current Limitations
+
+- state is in-memory only
+- no auth
+- no persistence layer
+- no job queue
+- dataset and workload ingestion are catalog-based, not browser-upload-based
+- correlation is computed on demand
+- verification uses mock execution, not a real distributed runner

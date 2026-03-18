@@ -127,7 +127,15 @@ export default function DatasetUploadPanel({
       return;
     }
     lastDatasetIdRef.current = nextDatasetId;
-    setSelectedProfileColumns((current) => (current.length === 0 ? current : []));
+    setSelectedProfileColumns((current) => {
+      if (
+        current.length === datasetColumnNames.length
+        && current.every((column, index) => column === datasetColumnNames[index])
+      ) {
+        return current;
+      }
+      return datasetColumnNames;
+    });
   }, [datasetSummary?.dataset_id, datasetColumnKey]);
 
   const parsedSampleInput = Number.parseInt(sampleInput, 10);
@@ -211,7 +219,7 @@ export default function DatasetUploadPanel({
     onGlobalLoadingStart?.("Computing correlation matrix");
 
     try {
-      const summary = await fetchDatasetCorrelation();
+      const summary = await fetchDatasetCorrelation(selectedProfileColumns);
       setCorrelationSummary(summary.correlation_summary);
       onSelected(summary);
     } catch (err) {
@@ -393,7 +401,7 @@ export default function DatasetUploadPanel({
                 )}
                 note={(
                   <p className="muted">
-                    {selectedProfileColumns.length}/{datasetSummary.columns.length} profiles selected
+                    {selectedProfileColumns.length}/{datasetSummary.columns.length} selected
                   </p>
                 )}
               >
@@ -469,6 +477,7 @@ export default function DatasetUploadPanel({
                 correlationSummary={correlationSummary}
                 loading={correlationLoading}
                 error={correlationError}
+                canLoad={selectedProfileColumns.length > 0}
                 onLoad={handleLoadCorrelation}
               />
             </div>

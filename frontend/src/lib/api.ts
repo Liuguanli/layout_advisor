@@ -65,9 +65,15 @@ export async function fetchDatasetSummary(): Promise<DatasetSummary> {
   return (await response.json()) as DatasetSummary;
 }
 
-export async function fetchDatasetCorrelation(): Promise<DatasetSummary> {
+export async function fetchDatasetCorrelation(
+  selectedColumns: string[] = [],
+): Promise<DatasetSummary> {
   const response = await fetch(`${API_BASE}/api/dataset/correlation`, {
-    method: "GET",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ selected_columns: selectedColumns }),
     cache: "no-store",
   });
 

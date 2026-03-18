@@ -102,3 +102,9 @@ class UpdateDatasetSampleRequest(BaseModel):
     """Request payload for updating sampled profile size."""
 
     sample_size: int = Field(..., ge=1)
+
+
+class ComputeCorrelationRequest(BaseModel):
+    """Optional column subset for correlation computation."""
+
+    selected_columns: list[str] = Field(default_factory=list)

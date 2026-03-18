@@ -7,6 +7,7 @@ type DatasetCorrelationPanelProps = {
   correlationSummary: CorrelationSummary | null;
   loading: boolean;
   error: string | null;
+  canLoad: boolean;
   onLoad: () => void;
 };
 
@@ -33,6 +34,7 @@ export default function DatasetCorrelationPanel({
   correlationSummary,
   loading,
   error,
+  canLoad,
   onLoad,
 }: DatasetCorrelationPanelProps) {
   if (!correlationSummary) {
@@ -41,7 +43,7 @@ export default function DatasetCorrelationPanel({
         title="Correlation"
       >
         <div className="correlation-controls">
-          <button type="button" onClick={onLoad} disabled={loading}>
+          <button type="button" onClick={onLoad} disabled={loading || !canLoad}>
             Compute Correlation
           </button>
         </div>

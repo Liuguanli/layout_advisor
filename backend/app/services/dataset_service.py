@@ -221,7 +221,10 @@ class DatasetService:
         self._summary = summary
         return summary
 
-    def get_correlation_summary(self) -> CorrelationSummary | None:
+    def get_correlation_summary(
+        self,
+        selected_columns: list[str] | None = None,
+    ) -> CorrelationSummary | None:
         """Compute or reuse the correlation summary for the current dataset."""
 
         if self._selected_dataset_path is None:
@@ -232,23 +235,37 @@ class DatasetService:
         if self._selected_dataset_path is None:
             raise ValueError("No dataset has been selected yet.")
 
-        cached = self._get_cached_correlation(self._selected_dataset_path)
-        if cached is not _UNCACHED:
-            return cached
+        normalized_columns = _normalize_correlation_columns(
+            self.get_summary().columns,
+            selected_columns,
+        )
+        use_full_dataset_cache = (
+            selected_columns is None
+            or len(normalized_columns) == len(self.get_summary().columns)
+        )
+
+        if use_full_dataset_cache:
+            cached = self._get_cached_correlation(self._selected_dataset_path)
+            if cached is not _UNCACHED:
+                return cached
 
         suffix = self._selected_dataset_path.suffix.lower()
         if suffix in {".csv", ".tbl"}:
             df = _read_tabular_text_dataset(self._selected_dataset_path)
-            correlation_summary = _build_correlation_summary_from_frame(df)
+            correlation_summary = _build_correlation_summary_from_frame(df, normalized_columns)
         elif suffix in {".parquet", ".pq"}:
             parquet_file = pq.ParquetFile(self._selected_dataset_path)
-            correlation_summary = _build_correlation_summary_from_parquet(parquet_file)
+            correlation_summary = _build_correlation_summary_from_parquet(
+                parquet_file,
+                normalized_columns,
+            )
         else:
             raise ValueError(
                 f"Unsupported configured dataset type: {self._selected_dataset_path.suffix.lower()}"
             )
 
-        self._cache_correlation(self._selected_dataset_path, correlation_summary)
+        if use_full_dataset_cache:
+            self._cache_correlation(self._selected_dataset_path, correlation_summary)
         if self._summary is not None:
             self._summary.correlation_summary = correlation_summary
         return correlation_summary
@@ -303,6 +320,31 @@ class DatasetService:
         """Persist correlation summary for reuse across sample-size updates."""
 
         self._correlation_cache[str(dataset_path.resolve())] = correlation_summary
+
+
+def _normalize_correlation_columns(
+    columns: list[ColumnInfo],
+    selected_columns: list[str] | None,
+) -> list[str]:
+    """Keep selected correlation columns in dataset order and drop invalid names."""
+
+    available = [column.name for column in columns]
+    if not selected_columns:
+        return available
+    selected_set = set(selected_columns)
+    return [column for column in available if column in selected_set]
+
+
+def _select_correlation_columns(
+    available_columns: list[str],
+    selected_columns: list[str] | None,
+) -> list[str]:
+    """Return the effective correlation columns in original dataset order."""
+
+    if not selected_columns:
+        return available_columns
+    selected_set = set(selected_columns)
+    return [column for column in available_columns if column in selected_set]
 
 
 def _infer_dtype(dtype: pd.api.extensions.ExtensionDtype) -> str:
@@ -536,12 +578,21 @@ def _build_column_profiles(
     return profiles
 
 
-def _build_correlation_summary_from_frame(df: pd.DataFrame) -> CorrelationSummary | None:
+def _build_correlation_summary_from_frame(
+    df: pd.DataFrame,
+    selected_columns: list[str] | None = None,
+) -> CorrelationSummary | None:
     """Compute an all-column association matrix from an in-memory dataframe."""
 
-    columns = [str(column) for column in df.columns]
+    columns = _select_correlation_columns(
+        [str(column) for column in df.columns],
+        selected_columns,
+    )
     if not columns:
         return None
+
+    if len(columns) != len(df.columns):
+        df = df[columns]
 
     column_types = {column: _infer_series_type(df[column]) for column in df.columns}
     column_kinds = _classify_frame_column_kinds(df, column_types)
@@ -594,15 +645,21 @@ def _build_correlation_summary_from_frame(df: pd.DataFrame) -> CorrelationSummar
 
 def _build_correlation_summary_from_parquet(
     parquet_file: pq.ParquetFile,
+    selected_columns: list[str] | None = None,
 ) -> CorrelationSummary | None:
     """Compute an all-column association matrix with full parquet scans."""
 
-    columns = [field.name for field in parquet_file.schema_arrow]
+    columns = _select_correlation_columns(
+        [field.name for field in parquet_file.schema_arrow],
+        selected_columns,
+    )
     if not columns:
         return None
 
     column_types = {
-        field.name: _infer_arrow_type(field.type) for field in parquet_file.schema_arrow
+        field.name: _infer_arrow_type(field.type)
+        for field in parquet_file.schema_arrow
+        if field.name in columns
     }
     column_kinds = _detect_parquet_column_kinds(parquet_file, column_types)
 

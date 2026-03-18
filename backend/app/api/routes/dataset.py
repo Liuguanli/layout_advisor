@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.models.dataset import (
+    ComputeCorrelationRequest,
     DatasetCatalogResponse,
     DatasetSummary,
     SelectDatasetRequest,
@@ -50,6 +51,20 @@ def get_dataset_correlation() -> DatasetSummary:
     try:
         summary = dataset_service.get_summary()
         summary.correlation_summary = dataset_service.get_correlation_summary()
+        return summary
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/correlation", response_model=DatasetSummary)
+def compute_dataset_correlation(payload: ComputeCorrelationRequest) -> DatasetSummary:
+    """Compute and return correlation summary for the selected column subset."""
+
+    try:
+        summary = dataset_service.get_summary()
+        summary.correlation_summary = dataset_service.get_correlation_summary(
+            payload.selected_columns,
+        )
         return summary
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
