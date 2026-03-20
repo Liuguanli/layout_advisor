@@ -37,23 +37,32 @@ export default function DatasetCorrelationPanel({
   canLoad,
   onLoad,
 }: DatasetCorrelationPanelProps) {
+  const actionLabel = correlationSummary ? "Refresh" : "Compute Correlation";
+
   if (!correlationSummary) {
     return (
       <CollapsibleSubsection
         title="Correlation"
-      >
-        <div className="correlation-controls">
+        actions={(
           <button type="button" onClick={onLoad} disabled={loading || !canLoad}>
-            Compute Correlation
+            {actionLabel}
           </button>
-        </div>
+        )}
+      >
         {error && <p className="error">{error}</p>}
       </CollapsibleSubsection>
     );
   }
 
   return (
-    <CollapsibleSubsection title="Correlation">
+    <CollapsibleSubsection
+      title="Correlation"
+      actions={(
+        <button type="button" onClick={onLoad} disabled={loading || !canLoad}>
+          {actionLabel}
+        </button>
+      )}
+    >
       {error && <p className="error">{error}</p>}
 
       <div className="correlation-layout">
