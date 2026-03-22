@@ -22,9 +22,10 @@ export default function CollapsibleSubsection({
   className = "summary-block",
 }: CollapsibleSubsectionProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
+  const containerClassName = `subsection-block ${className}`;
 
   return (
-    <div className={className}>
+    <div className={containerClassName}>
       <div className="subsection-toggle-row">
         <CollapsibleHeader
           title={title}
@@ -35,10 +36,10 @@ export default function CollapsibleSubsection({
         {actions && <div className="subsection-actions">{actions}</div>}
       </div>
       {!collapsed && (
-        <>
+        <div className="subsection-content">
           {note && <div className="subsection-note">{note}</div>}
           {children}
-        </>
+        </div>
       )}
     </div>
   );

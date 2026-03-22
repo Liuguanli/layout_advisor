@@ -31,7 +31,9 @@ export default function WorkloadDashboard({
   embedded = false,
 }: WorkloadDashboardProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const containerClassName = embedded ? "panel-subsection embedded-subsection" : "panel panel-subsection";
+  const containerClassName = embedded
+    ? "subsection-block panel-subsection embedded-subsection"
+    : "subsection-block panel panel-subsection";
 
   if (!summary) {
     return (
@@ -42,7 +44,11 @@ export default function WorkloadDashboard({
           onToggle={() => setCollapsed((current) => !current)}
           level={3}
         />
-        {!collapsed && <p>Load a static workload to see analysis metrics.</p>}
+        {!collapsed && (
+          <div className="workload-analysis-content" style={{fontSize: 14, paddingLeft: 24, color: "grey"}}>
+            <p>Load a static workload to see analysis metrics.</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -58,6 +64,15 @@ export default function WorkloadDashboard({
     name: `${pair.column_a} + ${pair.column_b}`,
     value: pair.count,
   }));
+  const shouldRotatePredicateAxis = predicateTypeData.length > 4
+    || predicateTypeData.some((item) => item.name.length > 12);
+  const predicateAxisTickFontSize = shouldRotatePredicateAxis
+    ? 11
+    : predicateTypeData.length <= 3
+      ? 13
+      : 12;
+  const predicateAxisHeight = shouldRotatePredicateAxis ? 52 : 24;
+  const predicateAxisBottomMargin = shouldRotatePredicateAxis ? 0 : 8;
 
   return (
     <div className={containerClassName}>
@@ -68,9 +83,9 @@ export default function WorkloadDashboard({
         level={3}
       />
       {!collapsed && (
-        <>
+        <div className="workload-analysis-content">
           <CollapsibleSubsection title="Workload Totals">
-            <p>
+            <p style={{marginTop: 0}}>
               <strong>Total queries:</strong> {summary.total_queries}
             </p>
           </CollapsibleSubsection>
@@ -79,9 +94,24 @@ export default function WorkloadDashboard({
             <CollapsibleSubsection title="Predicate Type Distribution" className="chart-card">
               <div className="chart-wrap">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={predicateTypeData}>
+                  <BarChart
+                    data={predicateTypeData}
+                    margin={{
+                      top: 8,
+                      right: 8,
+                      bottom: predicateAxisBottomMargin,
+                      left: 0,
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
+                    <XAxis
+                      dataKey="name"
+                      interval={0}
+                      angle={shouldRotatePredicateAxis ? -20 : 0}
+                      textAnchor={shouldRotatePredicateAxis ? "end" : "middle"}
+                      height={predicateAxisHeight}
+                      tick={{ fontSize: predicateAxisTickFontSize }}
+                    />
                     <YAxis allowDecimals={false} />
                     <Tooltip />
                     <Bar dataKey="value" fill="#1f77b4" />
@@ -121,7 +151,7 @@ export default function WorkloadDashboard({
                     type="category"
                     dataKey="name"
                     width={140}
-                    tick={{ fontSize: 11 }}
+                    tick={{ fontSize: 14 }}
                   />
                   <Tooltip />
                   <Bar dataKey="value" fill="#2ca02c" />
@@ -130,7 +160,7 @@ export default function WorkloadDashboard({
             </div>
           </CollapsibleSubsection>
 
-          <CollapsibleSubsection title="Top Co-occurring Filter Pairs">
+          <CollapsibleSubsection title="Top Co-occurring Filter Pairs" className="chart-card chart-card-full">
             {summary.top_cooccurring_filter_pairs.length === 0 ? (
               <p>No filter pairs found.</p>
             ) : (
@@ -147,7 +177,7 @@ export default function WorkloadDashboard({
                       type="category"
                       dataKey="name"
                       width={180}
-                      tick={{ fontSize: 11 }}
+                      tick={{ fontSize: 14 }}
                     />
                     <Tooltip />
                     <Bar dataKey="value" fill="#0f8b8d">
@@ -160,7 +190,7 @@ export default function WorkloadDashboard({
               </div>
             )}
           </CollapsibleSubsection>
-        </>
+        </div>
       )}
     </div>
   );

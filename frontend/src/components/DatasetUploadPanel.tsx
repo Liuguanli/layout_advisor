@@ -8,10 +8,10 @@ import {
   updateDatasetProfileSample,
 } from "../lib/api";
 import { DatasetSummary, StaticDatasetItem } from "../lib/types";
-import CollapsibleHeader from "./CollapsibleHeader";
 import CollapsibleSubsection from "./CollapsibleSubsection";
 import DatasetCorrelationPanel from "./DatasetCorrelationPanel";
 import DatasetProfilesPanel from "./DatasetProfilesPanel";
+import PanelHeader from "./PanelHeader";
 
 const DISTINCT_RATIO_DECIMALS = 3;
 
@@ -43,7 +43,6 @@ export default function DatasetUploadPanel({
   const [datasetId, setDatasetId] = useState(defaultId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
   const [showFullSchema, setShowFullSchema] = useState(false);
   const [sampleInput, setSampleInput] = useState("");
   const [sampleLoading, setSampleLoading] = useState(false);
@@ -250,239 +249,236 @@ export default function DatasetUploadPanel({
 
   return (
     <section className="panel">
-      <CollapsibleHeader
+      <PanelHeader
         title="1. Dataset Selection (Static Catalog)"
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((current) => !current)}
         action={headerAction}
       />
 
-      {!collapsed && (
-        <>
-          <form onSubmit={handleSubmit} className="panel-form">
-            <select
-              value={datasetId}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setDatasetId(nextValue);
-                setError(null);
-                if (!nextValue) {
-                  onSelected(null);
-                }
-              }}
-            >
-              {datasetOptions.length === 0 ? (
-                <option value="">No dataset configured</option>
-              ) : (
-                <>
-                  <option value="">No dataset selected</option>
-                  {datasetOptions.map((dataset) => (
-                    <option key={dataset.dataset_id} value={dataset.dataset_id}>
-                      {dataset.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-            <button type="submit" disabled={loading || datasetOptions.length === 0}>
-              Load Dataset
-            </button>
-          </form>
-
-          {error && <p className="error">{error}</p>}
-
-          {datasetSummary && (
-            <div className="summary-block">
-              <p>
-                <strong>Rows:</strong> {datasetSummary.row_count}
-              </p>
-              <CollapsibleSubsection
-                title="Profile Sample"
-                note={(
-                  <p className="muted">
-                    {rowCount > 0 ? `${sampleRatio.toFixed(2)}% of rows` : "-"}
-                  </p>
-                )}
-                className="sample-config-card"
-              >
-                <div className="sample-config-grid">
-                  <div>
-                    <label htmlFor="sample-ratio">Sample ratio</label>
-                    <input
-                      id="sample-ratio"
-                      type="range"
-                      min="0.1"
-                      max="5"
-                      step="0.1"
-                      value={rowCount > 0 ? sliderRatio : 0}
-                      disabled={sampleLoading || !datasetSummary}
-                      onChange={(event) => {
-                        const nextRatio = Number.parseFloat(event.target.value);
-                        const nextSampleSize = Math.max(
-                          1,
-                          Math.round((rowCount * nextRatio) / 100),
-                        );
-                        setSampleInput(String(nextSampleSize));
-                        setSampleError(null);
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sample-size">Sample rows</label>
-                    <input
-                      id="sample-size"
-                      type="number"
-                      min={1}
-                      max={Math.max(rowCount, 1)}
-                      value={sampleInput}
-                      disabled={sampleLoading || !datasetSummary}
-                      onChange={(event) => {
-                        setSampleInput(event.target.value);
-                        setSampleError(null);
-                      }}
-                    />
-                  </div>
-                </div>
-                <div className="sample-actions">
-                  <button
-                    type="button"
-                    disabled={sampleLoading || !hasPendingSampleChange || requestedSampleSize === null}
-                    onClick={() => {
-                      void handleApplySample();
-                    }}
-                  >
-                    Apply Sample
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost-button"
-                    disabled={sampleLoading || !hasPendingSampleChange}
-                    onClick={handleResetSample}
-                  >
-                    Reset
-                  </button>
-                  {datasetSummary && (
-                    <p className="muted">
-                      Current sample: {datasetSummary.profile_sample_size.toLocaleString()} rows
-                    </p>
-                  )}
-                </div>
-                {sampleLoading && <p className="muted">Refreshing sampled statistics...</p>}
-                {sampleError && <p className="error">{sampleError}</p>}
-              </CollapsibleSubsection>
-              <CollapsibleSubsection
-                title="Columns"
-                actions={(
-                  <>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={selectAllProfileColumns}
-                      disabled={datasetColumns.length === 0}
-                    >
-                      Select all
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={clearProfileColumns}
-                      disabled={selectedProfileColumns.length === 0}
-                    >
-                      Clear
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost-button"
-                      onClick={() => setShowFullSchema((current) => !current)}
-                    >
-                      {showFullSchema ? "Hide full schema" : "Show full schema"}
-                    </button>
-                  </>
-                )}
-                note={(
-                  <p className="muted">
-                    {selectedProfileColumns.length}/{datasetSummary.columns.length} selected
-                  </p>
-                )}
-              >
-                <div className="schema-pill-list">
-                  {datasetSummary.columns.slice(0, 16).map((column) => (
-                    <label key={column.name} className={`schema-pill ${selectedProfileSet.has(column.name) ? "is-selected" : ""}`}>
-                      <input
-                        type="checkbox"
-                        checked={selectedProfileSet.has(column.name)}
-                        onChange={() => toggleProfileColumn(column.name)}
-                      />
-                      <strong>{column.name}</strong>
-                      <span>{column.inferred_type}</span>
-                    </label>
-                  ))}
-                </div>
-                {datasetSummary.columns.length > 16 && !showFullSchema && (
-                  <p className="muted">
-                    Showing first 16 columns. Open full schema to toggle the rest.
-                  </p>
-                )}
-                {showFullSchema && (
-                  <div className="table-wrap">
-                    <table>
-                      <thead>
-                        <tr>
-                          <th>Select</th>
-                          <th>Name</th>
-                          <th>Type</th>
-                          <th>Range</th>
-                          <th>Distinct Ratio</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {datasetSummary.columns.map((column) => {
-                          const profile = profileByName.get(column.name);
-                          const nonNullCount = Math.max(
-                            (profile?.sample_size ?? 0) - (profile?.null_count ?? 0),
-                            0,
-                          );
-                          const distinctRatio = nonNullCount > 0
-                            ? ((profile?.distinct_count ?? 0) / nonNullCount) * 100
-                            : null;
-                          const rangeLabel =
-                            profile?.min_value && profile?.max_value
-                              ? `${profile.min_value} - ${profile.max_value}`
-                              : "-";
-
-                          return (
-                            <tr key={column.name}>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedProfileSet.has(column.name)}
-                                  onChange={() => toggleProfileColumn(column.name)}
-                                />
-                              </td>
-                              <td>{column.name}</td>
-                              <td>{column.inferred_type}</td>
-                              <td>{rangeLabel}</td>
-                              <td>{distinctRatio === null ? "-" : formatDistinctRatio(distinctRatio)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CollapsibleSubsection>
-
-              <DatasetProfilesPanel profiles={visibleProfiles} />
-              <DatasetCorrelationPanel
-                correlationSummary={correlationSummary}
-                loading={correlationLoading}
-                error={correlationError}
-                canLoad={selectedProfileColumns.length > 0}
-                onLoad={handleLoadCorrelation}
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="panel-form">
+        <select
+          value={datasetId}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setDatasetId(nextValue);
+            setError(null);
+            if (!nextValue) {
+              onSelected(null);
+            }
+          }}
+        >
+          {datasetOptions.length === 0 ? (
+            <option value="">No dataset configured</option>
+          ) : (
+            <>
+              <option value="">No dataset selected</option>
+              {datasetOptions.map((dataset) => (
+                <option key={dataset.dataset_id} value={dataset.dataset_id}>
+                  {dataset.name}
+                </option>
+              ))}
+            </>
           )}
-        </>
+        </select>
+        <button
+          type="submit"
+          disabled={loading || datasetOptions.length === 0 || !datasetId}
+        >
+          Load Dataset
+        </button>
+      </form>
+
+      {error && <p className="error">{error}</p>}
+
+      {datasetSummary && (
+        <div className="summary-block">
+          <p>
+            <strong>Rows:</strong> {datasetSummary.row_count}
+          </p>
+          <CollapsibleSubsection
+            title="Profile Sample"
+            note={(
+              <p className="muted" style={{marginTop: 0}}>
+                {rowCount > 0 ? `${sampleRatio.toFixed(2)}% of rows` : "-"}
+              </p>
+            )}
+            className="sample-config-card"
+          >
+            <div className="sample-config-grid">
+              <div>
+                <label htmlFor="sample-ratio">Sample ratio</label>
+                <input
+                  id="sample-ratio"
+                  type="range"
+                  min="0.1"
+                  max="5"
+                  step="0.1"
+                  value={rowCount > 0 ? sliderRatio : 0}
+                  disabled={sampleLoading || !datasetSummary}
+                  onChange={(event) => {
+                    const nextRatio = Number.parseFloat(event.target.value);
+                    const nextSampleSize = Math.max(
+                      1,
+                      Math.round((rowCount * nextRatio) / 100),
+                    );
+                    setSampleInput(String(nextSampleSize));
+                    setSampleError(null);
+                  }}
+                />
+              </div>
+              <div>
+                <label htmlFor="sample-size">Sample rows</label>
+                <input
+                  id="sample-size"
+                  type="number"
+                  min={1}
+                  max={Math.max(rowCount, 1)}
+                  value={sampleInput}
+                  disabled={sampleLoading || !datasetSummary}
+                  onChange={(event) => {
+                    setSampleInput(event.target.value);
+                    setSampleError(null);
+                  }}
+                />
+              </div>
+            </div>
+            <div className="sample-actions">
+              <button
+                type="button"
+                disabled={sampleLoading || !hasPendingSampleChange || requestedSampleSize === null}
+                onClick={() => {
+                  void handleApplySample();
+                }}
+              >
+                Apply Sample
+              </button>
+              <button
+                type="button"
+                className="ghost-button"
+                disabled={sampleLoading || !hasPendingSampleChange}
+                onClick={handleResetSample}
+              >
+                Reset
+              </button>
+              {datasetSummary && (
+                <p className="muted">
+                  Current sample: {datasetSummary.profile_sample_size.toLocaleString()} rows
+                </p>
+              )}
+            </div>
+            {sampleLoading && <p className="muted">Refreshing sampled statistics...</p>}
+            {sampleError && <p className="error">{sampleError}</p>}
+          </CollapsibleSubsection>
+          <CollapsibleSubsection
+            title="Columns"
+            actions={(
+              <>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={selectAllProfileColumns}
+                  disabled={datasetColumns.length === 0}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={clearProfileColumns}
+                  disabled={selectedProfileColumns.length === 0}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => setShowFullSchema((current) => !current)}
+                >
+                  {showFullSchema ? "Hide full schema" : "Show full schema"}
+                </button>
+              </>
+            )}
+            note={(
+              <p className="muted" style={{ marginTop: "0px" }}>
+                {selectedProfileColumns.length}/{datasetSummary.columns.length} selected
+              </p>
+            )}
+          >
+            <div className="schema-pill-list">
+              {datasetSummary.columns.slice(0, 16).map((column) => (
+                <label key={column.name} className={`schema-pill ${selectedProfileSet.has(column.name) ? "is-selected" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={selectedProfileSet.has(column.name)}
+                    onChange={() => toggleProfileColumn(column.name)}
+                  />
+                  <strong>{column.name}</strong>
+                  <span>{column.inferred_type}</span>
+                </label>
+              ))}
+            </div>
+            {datasetSummary.columns.length > 16 && !showFullSchema && (
+              <p className="muted">
+                Showing first 16 columns. Open full schema to toggle the rest.
+              </p>
+            )}
+            {showFullSchema && (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Select</th>
+                      <th>Name</th>
+                      <th>Type</th>
+                      <th>Range</th>
+                      <th>Distinct Ratio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {datasetSummary.columns.map((column) => {
+                      const profile = profileByName.get(column.name);
+                      const nonNullCount = Math.max(
+                        (profile?.sample_size ?? 0) - (profile?.null_count ?? 0),
+                        0,
+                      );
+                      const distinctRatio = nonNullCount > 0
+                        ? ((profile?.distinct_count ?? 0) / nonNullCount) * 100
+                        : null;
+                      const rangeLabel =
+                        profile?.min_value && profile?.max_value
+                          ? `${profile.min_value} - ${profile.max_value}`
+                          : "-";
+
+                      return (
+                        <tr key={column.name}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedProfileSet.has(column.name)}
+                              onChange={() => toggleProfileColumn(column.name)}
+                            />
+                          </td>
+                          <td>{column.name}</td>
+                          <td>{column.inferred_type}</td>
+                          <td>{rangeLabel}</td>
+                          <td>{distinctRatio === null ? "-" : formatDistinctRatio(distinctRatio)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CollapsibleSubsection>
+
+          <DatasetProfilesPanel profiles={visibleProfiles} />
+          <DatasetCorrelationPanel
+            correlationSummary={correlationSummary}
+            loading={correlationLoading}
+            error={correlationError}
+            canLoad={selectedProfileColumns.length > 0}
+            onLoad={handleLoadCorrelation}
+          />
+        </div>
       )}
     </section>
   );

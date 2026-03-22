@@ -68,22 +68,10 @@ export default function HomePage() {
   };
 
   const activeTabIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const previousTab = activeTabIndex > 0 ? tabs[activeTabIndex - 1] ?? null : null;
   const nextTab = activeTabIndex >= 0 ? tabs[activeTabIndex + 1] ?? null : null;
+  const canGoToPrevious = Boolean(previousTab);
   const canAdvanceToNext = Boolean(nextTab && tabEnabled[nextTab.id]);
-  const nextStepButton = (
-    <button
-      type="button"
-      className="page-shell-next-button"
-      onClick={() => {
-        if (nextTab && tabEnabled[nextTab.id]) {
-          setActiveTab(nextTab.id);
-        }
-      }}
-      disabled={!canAdvanceToNext}
-    >
-      Next Step
-    </button>
-  );
 
   useEffect(() => {
     const nextTab = verificationReady
@@ -191,6 +179,11 @@ export default function HomePage() {
             const enabled = tabEnabled[tab.id];
             const complete = tabComplete[tab.id];
             const isActive = activeTab === tab.id;
+            const markerStatusClass = complete
+              ? "is-complete"
+              : enabled
+                ? "is-ready"
+                : "is-locked";
             const statusLabel = complete
               ? "Completed step"
               : isActive
@@ -217,7 +210,7 @@ export default function HomePage() {
                 }}
               >
                 <span
-                  className={`top-tab-marker ${complete ? "is-complete" : isActive ? "is-active" : enabled ? "is-ready" : "is-locked"}`}
+                  className={`top-tab-marker ${markerStatusClass} ${isActive ? "is-current" : ""}`}
                   aria-hidden="true"
                 >
                   <span className="top-tab-dot" />
@@ -255,7 +248,6 @@ export default function HomePage() {
               onSelected={handleDatasetSelected}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
-              headerAction={nextStepButton}
             />
           </section>
           <section
@@ -272,7 +264,6 @@ export default function HomePage() {
               onSelected={handleWorkloadSelected}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
-              headerAction={nextStepButton}
             />
           </section>
           <section
@@ -289,7 +280,6 @@ export default function HomePage() {
               onComparisonListChange={setComparisonList}
               onGlobalLoadingStart={beginGlobalLoading}
               onGlobalLoadingEnd={endGlobalLoading}
-              headerAction={nextStepButton}
             />
           </section>
           <section
@@ -304,11 +294,43 @@ export default function HomePage() {
               workloadSummary={workloadSummary}
               comparisonList={comparisonList}
               onStatusChange={setVerificationComplete}
-              headerAction={nextStepButton}
             />
           </section>
         </div>
       </div>
+      {(canGoToPrevious || nextTab) && (
+        <div className="page-step-nav" aria-label="Step navigation">
+          {canGoToPrevious ? (
+            <button
+              type="button"
+              className="page-step-button page-step-button-previous"
+              onClick={() => {
+                if (previousTab) {
+                  setActiveTab(previousTab.id);
+                }
+              }}
+            >
+              Previous Page
+            </button>
+          ) : (
+            <div />
+          )}
+          {nextTab ? (
+            <button
+              type="button"
+              className="page-step-button page-step-button-next"
+              onClick={() => {
+                if (nextTab && tabEnabled[nextTab.id]) {
+                  setActiveTab(nextTab.id);
+                }
+              }}
+              disabled={!canAdvanceToNext}
+            >
+              Next Page
+            </button>
+          ) : null}
+        </div>
+      )}
     </main>
   );
 }

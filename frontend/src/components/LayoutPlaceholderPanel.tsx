@@ -9,8 +9,8 @@ import {
   LayoutEvaluation,
   WorkloadSummary,
 } from "../lib/types";
-import CollapsibleHeader from "./CollapsibleHeader";
 import CollapsibleSubsection from "./CollapsibleSubsection";
+import PanelHeader from "./PanelHeader";
 
 type LayoutPlaceholderPanelProps = {
   columns: string[];
@@ -322,7 +322,6 @@ export default function LayoutPlaceholderPanel({
     layoutOptions[0].id,
   ]);
   const [selectedCandidateKeys, setSelectedCandidateKeys] = useState<string[]>([]);
-  const [collapsed, setCollapsed] = useState(false);
   const [collapsedStages, setCollapsedStages] = useState<Record<DesignStageId, boolean>>({
     partition: false,
     layout: false,
@@ -691,16 +690,12 @@ export default function LayoutPlaceholderPanel({
 
   return (
     <section className="panel">
-      <CollapsibleHeader
+      <PanelHeader
         title="3. Physical Design Exploration"
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((current) => !current)}
         action={headerAction}
       />
 
-      {!collapsed && (
-        <>
-          <div className="design-streamline">
+      <div className="design-streamline">
             <DesignTimelineStage
               title="Partition Design"
               subtitle="Choose the outer physical split first"
@@ -1329,8 +1324,8 @@ export default function LayoutPlaceholderPanel({
             </CollapsibleSubsection>
           )}
 
-          {comparisonList.length > 0 && (
-            <CollapsibleSubsection title="Comparison List">
+      {comparisonList.length > 0 && (
+        <CollapsibleSubsection title="Comparison List">
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -1371,9 +1366,7 @@ export default function LayoutPlaceholderPanel({
                   </tbody>
                 </table>
               </div>
-            </CollapsibleSubsection>
-          )}
-        </>
+        </CollapsibleSubsection>
       )}
     </section>
   );

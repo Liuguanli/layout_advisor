@@ -19,10 +19,16 @@ type DatasetProfilesPanelProps = {
   profiles: ColumnProfile[];
 };
 
+function shouldRotateProfileAxis(labels: Array<{ label: string }>): boolean {
+  return labels.some((item) => item.label.length > 3);
+}
+
 export default function DatasetProfilesPanel({
   profiles,
 }: DatasetProfilesPanelProps) {
   const renderDistribution = (profile: ColumnProfile) => {
+    const rotateAxis = shouldRotateProfileAxis(profile.distribution);
+
     if (profile.distribution_kind === "datetime_line") {
       return (
         <ResponsiveContainer width="100%" height="100%">
@@ -56,9 +62,9 @@ export default function DatasetProfilesPanel({
             <XAxis
               dataKey="label"
               interval={0}
-              angle={-18}
-              textAnchor="end"
-              height={54}
+              angle={rotateAxis ? -38 : 0}
+              textAnchor={rotateAxis ? "end" : "middle"}
+              height={rotateAxis ? 54 : 30}
               tick={{ fontSize: 11 }}
             />
             <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
@@ -82,9 +88,9 @@ export default function DatasetProfilesPanel({
           <XAxis
             dataKey="label"
             interval={0}
-            angle={-20}
-            textAnchor="end"
-            height={56}
+            angle={rotateAxis ? -20 : 0}
+            textAnchor={rotateAxis ? "end" : "middle"}
+            height={rotateAxis ? 56 : 30}
             tick={{ fontSize: 11 }}
           />
           <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />

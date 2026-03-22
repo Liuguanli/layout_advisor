@@ -20,8 +20,8 @@ import {
   MockExecutionResult,
   WorkloadSummary,
 } from "../lib/types";
-import CollapsibleHeader from "./CollapsibleHeader";
 import CollapsibleSubsection from "./CollapsibleSubsection";
+import PanelHeader from "./PanelHeader";
 
 type VerificationPanelProps = {
   datasetSummary: DatasetSummary | null;
@@ -107,7 +107,6 @@ export default function VerificationPanel({
   onStatusChange,
   headerAction,
 }: VerificationPanelProps) {
-  const [collapsed, setCollapsed] = useState(false);
   const [selectedComparisonIds, setSelectedComparisonIds] = useState<string[]>([]);
   const [activeRunIds, setActiveRunIds] = useState<string[]>([]);
   const [mockRunStarted, setMockRunStarted] = useState(false);
@@ -445,16 +444,12 @@ export default function VerificationPanel({
 
   return (
     <section className="panel">
-      <CollapsibleHeader
+      <PanelHeader
         title="4. Verification"
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((current) => !current)}
         action={headerAction}
       />
 
-      {!collapsed && (
-        <>
-          <CollapsibleSubsection title="Selected Candidates">
+      <CollapsibleSubsection title="Selected Candidates">
             {sortedComparisonList.length > 0 && (
               <div className="table-wrap">
                 <table>
@@ -522,7 +517,7 @@ export default function VerificationPanel({
               </div>
             )}
 
-            <div className="sample-actions">
+            <div className="sample-actions" style={{marginTop: 16}}>
               <button
                 type="button"
                 disabled={sortedComparisonList.length === 0 || selectedComparisonIds.length === 0 || mockExecutionLoading}
@@ -602,7 +597,7 @@ export default function VerificationPanel({
                       type="category"
                       dataKey="name"
                       width={220}
-                      tick={{ fontSize: 11 }}
+                      tick={{ fontSize: 14 }}
                     />
                     <Tooltip />
                     <Legend />
@@ -709,12 +704,12 @@ export default function VerificationPanel({
             </CollapsibleSubsection>
           )}
 
-          {previewConfigRow && activePreviewTab && (
-            <div
-              className="preview-config-modal-backdrop"
-              role="presentation"
-              onClick={closePreviewConfig}
-            >
+      {previewConfigRow && activePreviewTab && (
+        <div
+          className="preview-config-modal-backdrop"
+          role="presentation"
+          onClick={closePreviewConfig}
+        >
               <div
                 className="preview-config-modal"
                 role="dialog"
@@ -766,9 +761,7 @@ export default function VerificationPanel({
                   <code>{activePreviewTab.content}</code>
                 </pre>
               </div>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </section>
   );

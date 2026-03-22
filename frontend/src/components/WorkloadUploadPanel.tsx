@@ -4,8 +4,8 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 import { selectWorkload } from "../lib/api";
 import { StaticWorkloadItem, WorkloadSummary, WorkloadUploadResponse } from "../lib/types";
-import CollapsibleHeader from "./CollapsibleHeader";
 import CollapsibleSubsection from "./CollapsibleSubsection";
+import PanelHeader from "./PanelHeader";
 import WorkloadDashboard from "./WorkloadDashboard";
 
 type WorkloadUploadPanelProps = {
@@ -34,7 +34,6 @@ export default function WorkloadUploadPanel({
   const [workloadId, setWorkloadId] = useState(defaultId);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     if (!workloadId && defaultId) {
@@ -74,61 +73,58 @@ export default function WorkloadUploadPanel({
 
   return (
     <section className="panel">
-      <CollapsibleHeader
+      <PanelHeader
         title="2. Query Workload Selection (Static Catalog)"
-        collapsed={collapsed}
-        onToggle={() => setCollapsed((current) => !current)}
         action={headerAction}
       />
 
-      {!collapsed && (
-        <>
-          <form onSubmit={handleSubmit} className="panel-form">
-            <select
-              value={workloadId}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setWorkloadId(nextValue);
-                setError(null);
-                if (!nextValue) {
-                  void onSelected(null);
-                }
-              }}
-            >
-              {workloadOptions.length === 0 ? (
-                <option value="">No workload configured</option>
-              ) : (
-                <>
-                  <option value="">No workload selected</option>
-                  {workloadOptions.map((workload) => (
-                    <option key={workload.workload_id} value={workload.workload_id}>
-                      {workload.name}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
-            <button type="submit" disabled={loading || workloadOptions.length === 0}>
-              Load Workload
-            </button>
-          </form>
-
-          {error && <p className="error">{error}</p>}
-
-          {uploadResult && (
-            <CollapsibleSubsection title="Import Summary">
-              <p>
-                <strong>Imported queries:</strong> {uploadResult.imported_queries}
-              </p>
-              <p>
-                <strong>Failed queries:</strong> {uploadResult.failed_queries}
-              </p>
-            </CollapsibleSubsection>
+      <form onSubmit={handleSubmit} className="panel-form">
+        <select
+          value={workloadId}
+          onChange={(event) => {
+            const nextValue = event.target.value;
+            setWorkloadId(nextValue);
+            setError(null);
+            if (!nextValue) {
+              void onSelected(null);
+            }
+          }}
+        >
+          {workloadOptions.length === 0 ? (
+            <option value="">No workload configured</option>
+          ) : (
+            <>
+              <option value="">No workload selected</option>
+              {workloadOptions.map((workload) => (
+                <option key={workload.workload_id} value={workload.workload_id}>
+                  {workload.name}
+                </option>
+              ))}
+            </>
           )}
+        </select>
+        <button
+          type="submit"
+          disabled={loading || workloadOptions.length === 0 || !workloadId}
+        >
+          Load Workload
+        </button>
+      </form>
 
-          <WorkloadDashboard summary={workloadSummary} embedded />
-        </>
+      {error && <p className="error">{error}</p>}
+
+      {uploadResult && (
+        <CollapsibleSubsection title="Import Summary">
+          <p style={{ marginTop: 0 }}>
+            <strong>Imported queries:</strong> {uploadResult.imported_queries}
+          </p>
+          <p>
+            <strong>Failed queries:</strong> {uploadResult.failed_queries}
+          </p>
+        </CollapsibleSubsection>
       )}
+
+      <WorkloadDashboard summary={workloadSummary} embedded />
     </section>
   );
 }
