@@ -13,6 +13,14 @@ The codebase is split into:
 - `frontend/`: Next.js UI
 - `examples/`: example workload files and generation scripts
 
+## Demo Video
+
+Watch the project walkthrough here:
+
+- [Open the demo video on Google Drive](https://drive.google.com/file/d/1MaKDfRkA3ISKyAsfTUz7vs_NBHZ7C57O/view)
+
+If the video does not open, make sure the Google Drive sharing setting allows anyone with the link to view it.
+
 This README is written for collaborators who clone the repo onto their own machine.
 
 ## What Is Machine-Specific
@@ -345,13 +353,3 @@ PYTHONPATH=. python -m unittest discover -s tests
 cd frontend
 npm run build
 ```
-
-## Current Limitations
-
-- state is in-memory only
-- no auth
-- no persistence layer
-- no job queue
-- dataset and workload ingestion are catalog-based, not browser-upload-based
-- correlation is computed on demand
-- verification uses mock execution, not a real distributed runner
