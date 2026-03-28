@@ -29,9 +29,9 @@ type TopTab = {
 
 export default function HomePage() {
   const tabs: TopTab[] = [
-    { id: "dataset", label: "Dataset", note: "Load data" },
-    { id: "workload", label: "Workload", note: "Load queries" },
-    { id: "layout", label: "Physical Design", note: "Choose design" },
+    { id: "dataset", label: "Dataset Analysis", note: "Load data" },
+    { id: "workload", label: "Workload Analysis", note: "Load queries" },
+    { id: "layout", label: "Physical Design Exploration", note: "Choose design" },
     { id: "verification", label: "Verification", note: "Validate ranking" },
   ];
   const [datasetSummary, setDatasetSummary] = useState<DatasetSummary | null>(null);
@@ -167,7 +167,7 @@ export default function HomePage() {
   return (
     <main className="page">
       <header className="header">
-        <h1>Layout Exploration System Prototype</h1>
+        <h1>LayoutPilot: A Lakehouse Physical Design Advisor</h1>
       </header>
 
       {statusMessage && <p className="warning">{statusMessage}</p>}

@@ -332,7 +332,7 @@ export default function LayoutPlaceholderPanel({
   const [estimateError, setEstimateError] = useState<string | null>(null);
   const [latestRunSortDirection, setLatestRunSortDirection] = useState<ScoreSortDirection>("desc");
   const [comparisonListSortDirection, setComparisonListSortDirection] = useState<ScoreSortDirection>("desc");
-  const [layoutSortKey, setLayoutSortKey] = useState<LayoutSortKey>("orderingUtility");
+  const [layoutSortKey, setLayoutSortKey] = useState<LayoutSortKey>("rangeShare");
   const [layoutSortDirection, setLayoutSortDirection] = useState<ScoreSortDirection>("desc");
   const getScoreValue = (item: LayoutEvaluation): number =>
     item.composite_score ?? (1 - item.avg_record_read_ratio);
@@ -597,7 +597,7 @@ export default function LayoutPlaceholderPanel({
     setEstimateError(null);
     setLatestRunSortDirection("asc");
     setComparisonListSortDirection("asc");
-    setLayoutSortKey("orderingUtility");
+    setLayoutSortKey("rangeShare");
     setLayoutSortDirection("desc");
   }, [datasetSummary?.dataset_id]);
 

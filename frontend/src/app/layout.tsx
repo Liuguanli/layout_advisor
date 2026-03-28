@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Layout Exploration Prototype",
-  description: "Dataset and SQL workload analysis prototype",
+  title: "LayoutPilot: A Lakehouse Physical Design Advisor",
+  description: "Interactive prototype for LayoutPilot: A Lakehouse Physical Design Advisor",
 };
 
 export default function RootLayout({
